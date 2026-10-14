@@ -129,6 +129,8 @@ class MalvaIndex:
         self.l_suffix = meta["l_suffix"]
         self.n_spatial = meta.get("n_cells", 0)
         self.HAS_MERGED_PROJECTS = meta.get("merge_projects", False)
+        if "coord_lims" in meta:
+            self.coord_lims = tuple(meta["coord_lims"])
         if "project_id_shift" in meta:
             self.PROJECT_ID_SHIFT = meta["project_id_shift"]
         if "cell_id_mask" in meta:
