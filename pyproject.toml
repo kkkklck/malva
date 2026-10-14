@@ -4,7 +4,7 @@ build-backend = "poetry.masonry.api"
 
 [tool.poetry]
 name = "malva"
-version = "1.0.1"
+version = "1.1.0"
 description = "malva: fast indexing and querying of genomic sequences from single-cell omics data"
 license = "LicenseRef-Malva-Academic-NonCommercial"
 authors = [
@@ -44,7 +44,7 @@ script = "build.py"
 generate-setup-file = true
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.9,<3.15"
 numpy = ">=1.17.0"
 pandas = ">=1.0"
 dnaio = ">1.0.0"
@@ -62,6 +62,7 @@ biopython = ">=1.83"
 scikit-image = ">=0.24.0"
 ollama = ">=0.3.1"
 tqdm = ">=4.66.6"
+anndata = ">=0.10.0"
 
 [tool.poetry.extras]
 # pip install 'malva[sra]'   — adds SRA archive support (requires sra-tools on PATH)
