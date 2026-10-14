@@ -4,10 +4,8 @@
 # Non-commercial and academic use only. See LICENSE for full terms.
 
 from math import log
-import numpy as np
 
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
+import numpy as np
 
 
 def overlapping_windows(sequence, L):
@@ -20,10 +18,11 @@ def overlapping_windows(sequence, L):
 
     for index, residue in enumerate(sequence):
         if (index + L) < (len(sequence) + 1):
-            window = sequence[index:L+index]
+            window = sequence[index : L + index]
             windows.append(window)
 
     return windows
+
 
 def compute_rep_vector(sequence, N):
     """
@@ -51,7 +50,6 @@ def compute_rep_vector(sequence, N):
     return sorted(repvec, reverse=True)
 
 
-
 def complexity(sequence, N):
     """
     Computes the Shannon Entropy of a given sequence of a
@@ -63,10 +61,9 @@ def complexity(sequence, N):
     """
     repvec = compute_rep_vector(sequence, N)
     L = len(sequence)
-    entropy = sum([-1*(n/L)*log((n/L), N) for n in repvec if n != 0])
+    entropy = sum([-1 * (n / L) * log((n / L), N) for n in repvec if n != 0])
 
     return entropy
-
 
 
 def mask_low_complexity(seq_rec, maskchar="N", N=20, L=12):
@@ -84,15 +81,16 @@ def mask_low_complexity(seq_rec, maskchar="N", N=20, L=12):
 
     rep_vectors = [(window, compute_rep_vector(window, N)) for window in windows]
 
-    window_complexity_pairs = [(rep_vector[0], complexity(rep_vector[1], N)) for rep_vector in rep_vectors]
+    window_complexity_pairs = [
+        (rep_vector[0], complexity(rep_vector[1], N)) for rep_vector in rep_vectors
+    ]
 
     complexities = np.array([complexity(rep_vector[1], N) for rep_vector in rep_vectors])
 
     avg_complexity = complexities.mean()
     std_complexity = complexities.std()
 
-    k1_cutoff = min([avg_complexity + std_complexity,
-                 avg_complexity - std_complexity])
+    k1_cutoff = min([avg_complexity + std_complexity, avg_complexity - std_complexity])
 
     alignment = [[] for i in range(0, len(seq_rec))]
 
@@ -101,9 +99,9 @@ def mask_low_complexity(seq_rec, maskchar="N", N=20, L=12):
             window = "".join([maskchar for i in range(0, L)])
         else:
             window = window_complexity_pair[0]
-    
+
         for residue_offset, residue in enumerate(window):
-            i = window_offset+residue_offset
+            i = window_offset + residue_offset
             alignment[i].append(residue)
 
     new_seq = []
@@ -117,8 +115,8 @@ def mask_low_complexity(seq_rec, maskchar="N", N=20, L=12):
     new_seq = "".join(new_seq)
 
     # avoid that there are isolated N's
-    for i in range(1, len(new_seq)-1):
-        if new_seq[i] == 'N' and new_seq[i] != 'N' and new_seq[i] != 'N':
+    for i in range(1, len(new_seq) - 1):
+        if new_seq[i] == "N" and new_seq[i] != "N" and new_seq[i] != "N":
             new_seq[i] = seq_rec[i]
 
     return new_seq

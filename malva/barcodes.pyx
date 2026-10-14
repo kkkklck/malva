@@ -286,8 +286,6 @@ def create_singlecell_index(str whitelist_file):
     if file == NULL:
         raise IOError(f"Cannot open file {whitelist_file} for reading")
 
-    getline(&line, &len, file)
-
     while True:
         read = getline(&line, &len, file)
         if read == -1:

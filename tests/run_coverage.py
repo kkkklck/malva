@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 import os
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
+
 
 def run_command(cmd, env=None):
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True, env=env)
+
 
 def main():
     # Clean existing builds and coverage files
@@ -14,7 +16,7 @@ def main():
     build_dir = Path("build")
     if build_dir.exists():
         shutil.rmtree(build_dir)
-    
+
     for pattern in ["*.so", ".coverage*", "*.gcda", "*.gcno"]:
         for file in Path().glob(pattern):
             file.unlink()
@@ -34,13 +36,17 @@ def main():
 
     # Run tests with coverage
     print("Running tests with coverage...")
-    run_command([
-        "poetry", "run", "pytest",
-        "--cov=malva",
-        "--cov-report=xml",
-        "--cov-report=html",
-        "tests/"
-    ])
+    run_command(
+        [
+            "poetry",
+            "run",
+            "pytest",
+            "--cov=malva",
+            "--cov-report=xml",
+            "--cov-report=html",
+            "tests/",
+        ]
+    )
 
     # Generate reports
     print("Generating coverage reports...")
@@ -50,6 +56,7 @@ def main():
 
     print("\nCoverage testing complete!")
     print("View detailed report at htmlcov/index.html")
+
 
 if __name__ == "__main__":
     main()

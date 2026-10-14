@@ -1,5 +1,7 @@
 import pytest
+
 from malva.fast_map import FastMapOfMap
+
 
 class TestFastMap:
     @pytest.fixture
@@ -19,7 +21,7 @@ class TestFastMap:
         values = [100, 200, 300]
         for value in values:
             fmap.add(key, value)
-        
+
         retrieved = fmap[key]
         assert len(retrieved) == len(values)
         assert all(v in retrieved for v in values)
@@ -42,3 +44,27 @@ class TestFastMap:
         retrieved = fmap[key]
         assert len(retrieved) == len(values)
         assert all(v in retrieved for v in values)
+
+
+class TestFastMapExtra:
+    def test_setitem_and_items(self):
+        fmap = FastMapOfMap()
+        fmap[1] = 10
+        fmap.add(1, 11)
+        fmap[2] = 20
+
+        assert len(fmap) == 2
+        assert 2 in fmap
+        assert 3 not in fmap
+
+        items = dict(fmap.items())
+        assert items[1] == [10, 11]
+        assert items[2] == [20]
+
+    def test_extend_keeps_duplicates(self):
+        fmap = FastMapOfMap()
+        fmap.extend(5, [1, 1, 2])
+        assert sorted(fmap[5]) == [1, 1, 2]
+
+    def test_empty_items(self):
+        assert FastMapOfMap().items() == []

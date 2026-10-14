@@ -7,36 +7,37 @@ for faster reading of fastq.gz files
 
 import io
 from typing import (
-    Optional,
     IO,
-    overload,
     BinaryIO,
     Literal,
+    Optional,
+    overload,
 )
 
 from xopen import (
-    _PROGRAM_SETTINGS, 
-    XOPEN_DEFAULT_GZIP_COMPRESSION, 
-    _PipedCompressionProgram, 
-    _ProgramSettings, 
-    _filepath_from_path_or_filelike,
-    _file_or_path_to_binary_stream,
-    _open_stdin_or_out,
-    _file_is_a_socket_or_pipe,
+    _PROGRAM_SETTINGS,
+    XOPEN_DEFAULT_GZIP_COMPRESSION,
+    FileOrPath,
+    _available_cpu_count,
     _detect_format_from_content,
     _detect_format_from_extension,
+    _file_is_a_socket_or_pipe,
+    _file_or_path_to_binary_stream,
+    _filepath_from_path_or_filelike,
     _open_bz2,
     _open_reproducible_gzip,
+    _open_stdin_or_out,
     _open_xz,
     _open_zst,
-    _available_cpu_count,
-    FileOrPath,
-    igzip_threaded,
+    _PipedCompressionProgram,
+    _ProgramSettings,
     gzip_ng_threaded,
+    igzip_threaded,
     zlib_ng,
 )
 
 _PROGRAM_SETTINGS["bgzip"] = _ProgramSettings(("bgzip",), tuple(range(0, 10)), "-@")
+
 
 @overload
 def xopen(
@@ -49,8 +50,7 @@ def xopen(
     errors: Optional[str] = ...,
     newline: Optional[str] = ...,
     format: Optional[str] = ...,
-) -> io.TextIOWrapper:
-    ...
+) -> io.TextIOWrapper: ...
 
 
 @overload
@@ -64,8 +64,7 @@ def xopen(
     errors: None = ...,
     newline: None = ...,
     format: Optional[str] = ...,
-) -> BinaryIO:
-    ...
+) -> BinaryIO: ...
 
 
 def xopen(  # noqa: C901
@@ -139,10 +138,7 @@ def xopen(  # noqa: C901
         filename = open(filename, binary_mode)  # type: ignore
 
     if format not in (None, "gz", "xz", "bz2", "zst"):
-        raise ValueError(
-            f"Format not supported: {format}. "
-            f"Choose one of: 'gz', 'xz', 'bz2', 'zst'"
-        )
+        raise ValueError(f"Format not supported: {format}. Choose one of: 'gz', 'xz', 'bz2', 'zst'")
     detected_format = format or _detect_format_from_extension(filepath)
     if detected_format is None and "r" in mode:
         detected_format = _detect_format_from_content(filename)
@@ -186,13 +182,11 @@ def _open_gz(
     if compresslevel not in range(10):
         # Level 0-9 are supported regardless of backend support
         # (zlib_ng supports -1, pigz supports 11 etc.)
-        raise ValueError(
-            f"gzip compresslevel must be in range 0-9, got {compresslevel}."
-        )
+        raise ValueError(f"gzip compresslevel must be in range 0-9, got {compresslevel}.")
 
     if threads != 0:
         # First we try with bgzip, which can be the fastest for fastq.gz files
-        for program in ("bgzip", ):
+        for program in ("bgzip",):
             try:
                 return _PipedCompressionProgram(
                     filename,
@@ -223,7 +217,7 @@ def _open_gz(
                 compresslevel=2 if compresslevel == 1 else compresslevel,
                 threads=threads or max(_available_cpu_count(), 4),
             )
-        
+
         # Lastly the other two last options if none of the above is available
         for program in ("pigz", "gzip"):
             try:

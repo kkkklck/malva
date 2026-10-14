@@ -4,15 +4,22 @@
 # Non-commercial and academic use only. See LICENSE for full terms.
 
 import logging
-from rich.logging import RichHandler
 import os
+
+from rich.logging import RichHandler
 
 from malva.cli import cmdline_main
 
+
 def run_malva():
-    MALVA_DEBUG = os.environ.get('MALVA_DEBUG', '0')
-    _level = logging.DEBUG if MALVA_DEBUG == '1' else logging.INFO
-    logging.basicConfig(format="%(message)s", datefmt="[%X]", level=_level, handlers=[RichHandler(enable_link_path=False, show_path=False)])
+    MALVA_DEBUG = os.environ.get("MALVA_DEBUG", "0")
+    _level = logging.DEBUG if MALVA_DEBUG == "1" else logging.INFO
+    logging.basicConfig(
+        format="%(message)s",
+        datefmt="[%X]",
+        level=_level,
+        handlers=[RichHandler(enable_link_path=False, show_path=False)],
+    )
     cmdline_main()
 
 

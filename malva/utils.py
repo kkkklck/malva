@@ -26,8 +26,7 @@ _CITATION = None
 # )
 
 SUCCESS_MSG = "Done!" + (
-    f"\nIf you use malva in your research, please cite:\n  {_CITATION}"
-    if _CITATION else ""
+    f"\nIf you use malva in your research, please cite:\n  {_CITATION}" if _CITATION else ""
 )
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -160,7 +159,9 @@ def check_directory_exists(path, except_when=None) -> bool:
             _ret_val = os.path.exists(path)
 
     if except_when is not None and except_when == _ret_val:
-        raise FileNotFoundError(f"The directory '{path}' does {'not ' if not except_when else ''}exist")
+        raise FileNotFoundError(
+            f"The directory '{path}' does {'not ' if not except_when else ''}exist"
+        )
 
     return _ret_val
 
@@ -191,7 +192,9 @@ def check_adata_structure(f):
             logging.debug("The Open-ST h5 object has a 'spatial_aligned' layer")
 
 
-def load_properties_from_adata(f, properties: list = ["obsm/spatial"], backed: bool = False) -> dict:
+def load_properties_from_adata(
+    f, properties: list = ["obsm/spatial"], backed: bool = False
+) -> dict:
     """
     Load specified properties from an AnnData file (h5py format).
 
@@ -285,9 +288,9 @@ def get_package_path() -> str:
     Returns:
         str: Absolute path of the directory containing the current Python package.
     """
-    import openst
+    import malva
 
-    return os.path.dirname(os.path.abspath(openst.__file__))
+    return os.path.dirname(os.path.abspath(malva.__file__))
 
 
 def get_absolute_package_path(relative_path) -> str:
@@ -403,7 +406,11 @@ def defragment_hdf5_file(input_file, output_file, dataset_name, chunk_size=None,
             chunks = (min(1000, dset_in.shape[0]),)
 
         dset_out = f_out.create_dataset(
-            dataset_name, shape=dset_in.shape, dtype=dset_in.dtype, chunks=chunks, compression=compression
+            dataset_name,
+            shape=dset_in.shape,
+            dtype=dset_in.dtype,
+            chunks=chunks,
+            compression=compression,
         )
 
         total_chunks = (dset_in.shape[0] + chunks[0] - 1) // chunks[0]
@@ -453,12 +460,12 @@ def download_url_to_file(url, dst, progress=True):
     try:
         with os.fdopen(tmp_fd, "wb") as f:
             chunk_size = 8192
-            chunks = iter(lambda: u.read(chunk_size), b'')
+            chunks = iter(lambda: u.read(chunk_size), b"")
 
             for chunk in track(
                 chunks,
                 total=file_size // chunk_size + (1 if file_size % chunk_size else 0),
-                description="Downloading"
+                description="Downloading",
             ):
                 f.write(chunk)
 
@@ -469,26 +476,30 @@ def download_url_to_file(url, dst, progress=True):
         raise
 
 
-EXISTING_REFERENCES = {"human_utr": "human_utr.fa.gz",
-                       "human_markers": "human_markers.fa.gz",
-                       "human_markers_json": "markers_human.json",
-                       "human_markers_hallmarks": "human_markers_hallmarks.fa.gz",
-                       "human_markers_hallmarks_json": "markers_human_hallmarks.json",
-                       "human_cdna": "human_cdna.fa.gz",
-                       "human_utr_ncrna": "human_utr_ncrna.fa.gz",
-                       "human_cdna_ncrna": "human_cdna_ncrna.fa.gz",
-                       "mouse_utr": "mouse_utr.fa.gz",
-                       "mouse_cdna": "mouse_cdna.fa.gz",
-                       "mouse_markers": "mouse_markers.fa.gz",
-                       "mouse_markers_json": "markers_mouse.json",
-                       "mouse_utr_ncrna": "mouse_utr_ncrna.fa.gz",
-                       "mouse_cdna_ncrna": "mouse_cdna_ncrna.fa.gz",
-                       "drosophila_markers": "drosophila_markers.fa.gz",
-                       "drosophila_markers_json": "markers_drosophila.json",
-                       "arabidopsis_markers": "arabidopsis_markers.fa.gz",
-                       "arabidopsis_markers_json": "markers_arabidopsis.json",}
+EXISTING_REFERENCES = {
+    "human_utr": "human_utr.fa.gz",
+    "human_markers": "human_markers.fa.gz",
+    "human_markers_json": "markers_human.json",
+    "human_markers_hallmarks": "human_markers_hallmarks.fa.gz",
+    "human_markers_hallmarks_json": "markers_human_hallmarks.json",
+    "human_cdna": "human_cdna.fa.gz",
+    "human_utr_ncrna": "human_utr_ncrna.fa.gz",
+    "human_cdna_ncrna": "human_cdna_ncrna.fa.gz",
+    "mouse_utr": "mouse_utr.fa.gz",
+    "mouse_cdna": "mouse_cdna.fa.gz",
+    "mouse_markers": "mouse_markers.fa.gz",
+    "mouse_markers_json": "markers_mouse.json",
+    "mouse_utr_ncrna": "mouse_utr_ncrna.fa.gz",
+    "mouse_cdna_ncrna": "mouse_cdna_ncrna.fa.gz",
+    "drosophila_markers": "drosophila_markers.fa.gz",
+    "drosophila_markers_json": "markers_drosophila.json",
+    "arabidopsis_markers": "arabidopsis_markers.fa.gz",
+    "arabidopsis_markers_json": "markers_arabidopsis.json",
+}
 REFERENCES_DIR = pathlib.Path.home().joinpath(".malva", "references")
 _MODEL_URL = "http://bimsbstatic.mdc-berlin.de/rajewsky/malva/references"
+
+
 def get_reference_cache(reference):
     """Get the path to a cached reference file, downloading it if necessary.
 
@@ -502,7 +513,9 @@ def get_reference_cache(reference):
         return reference
 
     if reference not in EXISTING_REFERENCES:
-        logging.error(f"The reference {reference} is not available. It has to be one of {EXISTING_REFERENCES}")
+        logging.error(
+            f"The reference {reference} is not available. It has to be one of {EXISTING_REFERENCES}"
+        )
         exit(1)
 
     REFERENCES_DIR.mkdir(parents=True, exist_ok=True)
@@ -513,7 +526,7 @@ def get_reference_cache(reference):
         url = f"{_MODEL_URL}/{reference_filename}"
         logging.info(f'Downloading: "{url}" to {cached_file}')
         download_url_to_file(url, cached_file, progress=True)
-    
+
     return cached_file
 
 
@@ -542,28 +555,23 @@ def convert_to_bytes(max_mem: str) -> int:
     >>> convert_to_bytes('1024')
     1024
     """
-    
+
     import re
 
     if not max_mem:
         return None
-    
-    pattern = r'^(\d+(\.\d+)?)\s*([kKmMgGtT])?[bB]?$'
+
+    pattern = r"^(\d+(\.\d+)?)\s*([kKmMgGtT])?[bB]?$"
     match = re.match(pattern, max_mem.strip())
-    
+
     if not match:
         raise ValueError(f"Invalid memory string format: {max_mem}")
-    
+
     value, _, unit = match.groups()
     value = float(value)
-    
-    units = {
-        'k': 1024,
-        'm': 1024 ** 2,
-        'g': 1024 ** 3,
-        't': 1024 ** 4
-    }
-    
+
+    units = {"k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}
+
     if unit:
         return int(value * units[unit.lower()])
     else:

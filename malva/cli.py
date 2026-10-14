@@ -20,7 +20,7 @@ def get_index_parser():
         "--reads-in",
         type=str,
         required=True,
-        nargs='+',
+        nargs="+",
         help="""Input reads.  Three modes are supported:
 
   FASTQ (default): provide exactly two files — R1 and R2.
@@ -120,16 +120,14 @@ def get_index_parser():
         type=int,
         default=0,
         metavar="INT",
-        help="Index (0-based) of the SRA segment containing the cell barcode "
-             "(default: 0).",
+        help="Index (0-based) of the SRA segment containing the cell barcode (default: 0).",
     )
     sra_group.add_argument(
         "--sra-cdna-segment",
         type=int,
         default=1,
         metavar="INT",
-        help="Index (0-based) of the SRA segment containing the cDNA sequence "
-             "(default: 1).",
+        help="Index (0-based) of the SRA segment containing the cDNA sequence (default: 1).",
     )
     sra_group.add_argument(
         "--sra-barcode-start",
@@ -137,7 +135,7 @@ def get_index_parser():
         default=None,
         metavar="INT",
         help="Start position (inclusive, 0-based) within the barcode segment. "
-             "Default: taken from --flavor.",
+        "Default: taken from --flavor.",
     )
     sra_group.add_argument(
         "--sra-barcode-end",
@@ -145,7 +143,7 @@ def get_index_parser():
         default=None,
         metavar="INT",
         help="End position (exclusive, 0-based) within the barcode segment. "
-             "Default: taken from --flavor.",
+        "Default: taken from --flavor.",
     )
 
     # ------------------------------------------------------------------
@@ -161,7 +159,7 @@ def get_index_parser():
         default=None,
         metavar="TAG",
         help="BAM tag that carries the cell barcode (e.g. CB, CR, XC). "
-             "Default: taken from the --flavor configuration (usually 'CB').",
+        "Default: taken from the --flavor configuration (usually 'CB').",
     )
     bam_group.add_argument(
         "--bam-sequence-tag",
@@ -169,7 +167,7 @@ def get_index_parser():
         default=None,
         metavar="TAG",
         help="BAM tag that carries the cDNA sequence. "
-             "When omitted, the main SEQ field is used (the typical case).",
+        "When omitted, the main SEQ field is used (the typical case).",
     )
 
     return parser
@@ -429,29 +427,29 @@ def get_cellxmer_parser():
         help="""Aggregates spatial units at the final AnnData file to reduce dimensions of final cell-by-kmer matrix""",
     )
     parser.add_argument(
-        '--w-size', 
-        type=int, 
+        "--w-size",
+        type=int,
         default=16,
-        help='W-mer size for filtering (default: 16, must be <= k-mer size)'
+        help="W-mer size for filtering (default: 16, must be <= k-mer size)",
     )
     parser.add_argument(
-        '--num-buckets', 
-        type=int, 
+        "--num-buckets",
+        type=int,
         default=100_000,
-        help='Number of buckets for clustering k-mers (default: 100,000)'
+        help="Number of buckets for clustering k-mers (default: 100,000)",
     )
     # Add arguments for chunked processing
     parser.add_argument(
-        '--chunk-size',
+        "--chunk-size",
         type=int,
         default=1_000_000,
-        help='Number of k-mers to process in each chunk (default: 1,000,000)'
+        help="Number of k-mers to process in each chunk (default: 1,000,000)",
     )
     parser.add_argument(
-        '--tmp-dir',
+        "--tmp-dir",
         type=str,
         default=None,
-        help='Directory for temporary files (default: system temp directory)'
+        help="Directory for temporary files (default: system temp directory)",
     )
     return parser
 
@@ -474,6 +472,7 @@ def cmd_run_cellxmer(args):
 
 
 AUTOANNOTATE_HELP = "Convert the malva index to a cell-by-mer AnnData file that can be used for clustering and sequence assembly"
+
 
 def get_autoannotate_parser():
     parser = argparse.ArgumentParser(
@@ -499,7 +498,13 @@ def get_autoannotate_parser():
         type=str,
         required=False,
         default="human_markers",
-        choices=["human_markers", "human_markers_hallmarks", "mouse_markers", "drosophila_markers", "arabidopsis_markers"],
+        choices=[
+            "human_markers",
+            "human_markers_hallmarks",
+            "mouse_markers",
+            "drosophila_markers",
+            "arabidopsis_markers",
+        ],
         help="Flavor used for annotation. Valid options: 'human_markers', 'human_markers_hallmarks', 'mouse_markers'. More will be available soon...",
     )
     parser.add_argument(
@@ -554,9 +559,9 @@ def get_combine_parser():
         This adds a bit of time to the overall processing.""",
     )
     parser.add_argument(
-        '--merge-projects', 
-        action='store_true', 
-        help='Merge data from different projects, preserving project identities'
+        "--merge-projects",
+        action="store_true",
+        help="Merge data from different projects, preserving project identities",
     )
     parser.add_argument(
         "--uuid",
@@ -589,6 +594,7 @@ def cmd_run_combine(args):
 
     _run_combine(args)
 
+
 CONVERT_HELP = "Convert legacy Malva HDF5 index to new prefix-bucketed format"
 
 
@@ -599,15 +605,15 @@ def get_convert_parser():
         add_help=False,
     )
 
-    sub = parser.add_subparsers(dest='command')
+    sub = parser.add_subparsers(dest="command")
 
-    p = sub.add_parser('convert')
+    p = sub.add_parser("convert")
     p.add_argument("--input", required=True)
     p.add_argument("--output", required=True)
     p.add_argument("--l-prefix", type=int, default=12)
     p.add_argument("--chunk-size", type=int, default=5_000_000)
 
-    p = sub.add_parser('verify')
+    p = sub.add_parser("verify")
     p.add_argument("--old", required=True)
     p.add_argument("--new", required=True)
     p.add_argument("--n-sample", type=int, default=100000)
@@ -710,7 +716,9 @@ def cmd_run_serve(args):
 
     _run_serve(args)
 
+
 SEARCH_HELP = "Query a malva server malva indexes for sequences"
+
 
 def get_search_parser():
     parser = argparse.ArgumentParser(
@@ -721,24 +729,36 @@ def get_search_parser():
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     default_server = "http://localhost:7175"
-    
+
     search_parser = subparsers.add_parser("query", help="Search sequences in a Malva dataset")
     search_parser.add_argument("--file", help="File containing sequences to search (FASTA format)")
     search_parser.add_argument("--sequence", help="Sequence to search")
-    search_parser.add_argument("--dataset", help="Dataset ID to search (if not specified, uses all)")
+    search_parser.add_argument(
+        "--dataset", help="Dataset ID to search (if not specified, uses all)"
+    )
     search_parser.add_argument("--output", help="Output file for results")
-    search_parser.add_argument("--server", default=default_server, help=f"Server URL (default: {default_server})")
+    search_parser.add_argument(
+        "--server", default=default_server, help=f"Server URL (default: {default_server})"
+    )
     search_parser.add_argument("--wait", action="store_true", help="Wait for job completion")
-    search_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
-    
+    search_parser.add_argument(
+        "--format", choices=["text", "json"], default="text", help="Output format (default: text)"
+    )
+
     list_parser = subparsers.add_parser("list-datasets", help="List available datasets")
-    list_parser.add_argument("--server", default=default_server, help=f"Server URL (default: {default_server})")
-    
+    list_parser.add_argument(
+        "--server", default=default_server, help=f"Server URL (default: {default_server})"
+    )
+
     status_parser = subparsers.add_parser("status", help="Check status of a search job")
     status_parser.add_argument("job_id", help="Job ID to check")
     status_parser.add_argument("--output", help="Output file for results")
-    status_parser.add_argument("--server", default=default_server, help=f"Server URL (default: {default_server})")
-    status_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format (default: text)")
+    status_parser.add_argument(
+        "--server", default=default_server, help=f"Server URL (default: {default_server})"
+    )
+    status_parser.add_argument(
+        "--format", choices=["text", "json"], default="text", help="Output format (default: text)"
+    )
 
     return parser
 
@@ -756,7 +776,9 @@ def setup_search_parser(parent_parser):
 
 def cmd_run_search(args):
     from malva.search import _run_search
+
     _run_search(args)
+
 
 def cmdline_args():
     parent_parser = argparse.ArgumentParser(
@@ -782,6 +804,7 @@ def cmdline_args():
 
     return parent_parser, parsed_args
 
+
 def cmdline_parser():
     parent_parser = argparse.ArgumentParser(
         allow_abbrev=False,
@@ -800,6 +823,7 @@ def cmdline_parser():
     setup_convert_parser(parent_parser_subparsers)
 
     return parent_parser
+
 
 def cmdline_main():
     import importlib.metadata

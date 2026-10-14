@@ -5,10 +5,11 @@
 
 import os
 import sys
-import numpy
 from distutils.command.build_ext import build_ext
-from setuptools import Extension
+
+import numpy
 from Cython.Build import cythonize
+from setuptools import Extension
 
 
 def _has_liburing():
@@ -21,6 +22,7 @@ def _has_liburing():
     if sys.platform != "linux":
         return False
     import subprocess
+
     # Include paths to search: active conda/venv prefix + system default.
     extra_includes = []
     prefix = getattr(sys, "prefix", None)
@@ -36,9 +38,10 @@ def _has_liburing():
     except Exception:
         return False
 
+
 # Set MALVA_DEBUG_BUILD=1 to build with profiling hooks and debug symbols.
 # Default (0) builds with full production optimisations for distribution.
-DEBUG_BUILD = os.environ.get('MALVA_DEBUG_BUILD', '0') == '1'
+DEBUG_BUILD = os.environ.get("MALVA_DEBUG_BUILD", "0") == "1"
 
 unordered_dense_include = "./include"
 
@@ -54,28 +57,28 @@ class BuildExt(build_ext):
 def get_extensions():
     if DEBUG_BUILD:
         compiler_directives = {
-            'language_level': 3,
-            'boundscheck': False,
-            'wraparound': False,
-            'initializedcheck': False,
-            'cdivision': True,
-            'linetrace': True,
-            'profile': True,
+            "language_level": 3,
+            "boundscheck": False,
+            "wraparound": False,
+            "initializedcheck": False,
+            "cdivision": True,
+            "linetrace": True,
+            "profile": True,
         }
         compile_args = ["-std=c++17"]
         link_args = []
-        macros = [('CYTHON_TRACE', '1'), ('CYTHON_TRACE_NOGIL', '1')]
+        macros = [("CYTHON_TRACE", "1"), ("CYTHON_TRACE_NOGIL", "1")]
     else:
         compiler_directives = {
-            'language_level': 3,
-            'boundscheck': False,
-            'wraparound': False,
-            'initializedcheck': False,
-            'cdivision': True,
-            'linetrace': False,
-            'profile': False,
-            'embedsignature': False,
-            'emit_code_comments': False,
+            "language_level": 3,
+            "boundscheck": False,
+            "wraparound": False,
+            "initializedcheck": False,
+            "cdivision": True,
+            "linetrace": False,
+            "profile": False,
+            "embedsignature": False,
+            "emit_code_comments": False,
         }
         compile_args = [
             "-std=c++17",
@@ -86,17 +89,17 @@ def get_extensions():
             "-ffunction-sections",
             "-fdata-sections",
         ]
-        macros = [('NDEBUG', '1')]
+        macros = [("NDEBUG", "1")]
 
-        if sys.platform == 'linux':
+        if sys.platform == "linux":
             # GCC-specific: avoid PLT indirection for intra-DSO calls
             compile_args.append("-fno-semantic-interposition")
             link_args = [
-                "-Wl,--strip-all",        # strip debug symbols
-                "-Wl,--gc-sections",      # drop unused code/data sections
-                "-Wl,--exclude-libs,ALL", # hide symbols from static libs
-                "-Wl,-z,relro",           # read-only relocations (security)
-                "-Wl,-z,now",             # full RELRO
+                "-Wl,--strip-all",  # strip debug symbols
+                "-Wl,--gc-sections",  # drop unused code/data sections
+                "-Wl,--exclude-libs,ALL",  # hide symbols from static libs
+                "-Wl,-z,relro",  # read-only relocations (security)
+                "-Wl,-z,now",  # full RELRO
             ]
         else:
             # macOS (Apple ld)
@@ -171,9 +174,7 @@ def get_extensions():
         ),
     ]
 
-    return cythonize(extensions,
-                     compiler_directives=compiler_directives,
-                     force=True)
+    return cythonize(extensions, compiler_directives=compiler_directives, force=True)
 
 
 def build(setup_kwargs):
@@ -187,6 +188,7 @@ def build(setup_kwargs):
 
 if __name__ == "__main__":
     from setuptools import setup
+
     setup(
         name="malva",
         ext_modules=get_extensions(),
