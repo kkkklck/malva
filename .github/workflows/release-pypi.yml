@@ -1,0 +1,83 @@
+name: release-pypi
+
+# Publishes the version already in pyproject.toml to PyPI: an sdist plus the
+# platform wheels, built with cibuildwheel (the same tool as
+# build_scripts/build_with_docker.sh) so the Linux wheels carry manylinux tags
+# that PyPI accepts.
+#
+# Run it from a green main, either manually or by pushing a vX.Y.Z tag. See
+# PUBLISHING.md for the one-time PyPI trusted-publisher / API-token setup.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the built artifacts to PyPI (uncheck for a build-only run)
+        type: boolean
+        default: true
+  push:
+    tags: ["v*"]
+
+# Never run two releases for the same ref at once.
+concurrency:
+  group: release-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+      - run: uv build --sdist --out-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip cibuildwheel
+      # [tool.cibuildwheel] in pyproject.toml drives this: cp39-cp312, the
+      # manylinux_2_28 image (with liburing-devel) on Linux and macOS x86_64 +
+      # arm64. On Linux cibuildwheel builds inside the manylinux container.
+      - run: python -m cibuildwheel --output-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  publish:
+    needs: [sdist, wheels]
+    if: ${{ github.event_name == 'push' || inputs.publish }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/malva
+    permissions:
+      # OIDC trusted publishing: lets PyPI verify this workflow without a token.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: ls -la dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        # Without trusted publishing, drop the id-token permission above and use
+        # an API token instead (see PUBLISHING.md):
+        # with:
+        #   password: ${{ secrets.PYPI_API_TOKEN }}
