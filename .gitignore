@@ -200,3 +200,6 @@ cython_debug/
 #.idea/
 
 !docs/_build/
+
+# flask_session writes a directory here when the serve app is exercised
+flask_session/

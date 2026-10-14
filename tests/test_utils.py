@@ -10,16 +10,26 @@ import pytest
 from malva.utils import (
     FormatError,
     binary_search,
+    check_adata_structure,
     check_cell_string,
     check_directory_exists,
     check_file_exists,
+    check_obs_unique,
+    conditional_track,
     convert_to_bytes,
+    copytree2,
     defragment_hdf5_file,
+    get_absolute_package_path,
+    get_module_path,
+    get_package_path,
     get_reference_cache,
     group_intervals,
+    h5_to_dict,
     load_pickle,
+    load_properties_from_adata,
     safety_check_eval,
     save_pickle,
+    write_key_to_h5,
 )
 
 
@@ -178,3 +188,118 @@ class TestUtils:
                 # Test with invalid reference
                 with pytest.raises(SystemExit):
                     get_reference_cache("invalid_reference")
+
+
+class TestUtilsExtra:
+    @pytest.fixture
+    def temp_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    def test_module_and_package_paths(self):
+        module_path = get_module_path()
+        assert module_path.name == "malva"
+        assert module_path.is_dir()
+        assert get_package_path() == str(module_path)
+        assert get_absolute_package_path("data") == os.path.join(str(module_path), "data")
+
+    def test_conditional_track_silent(self):
+        with conditional_track(["a", "b"], description="x", silent=True) as items:
+            assert list(items) == ["a", "b"]
+
+    def test_conditional_track_shows_progress(self):
+        with conditional_track(["a", "b"], description="x") as items:
+            assert list(items) == ["a", "b"]
+
+    def test_copytree2(self, temp_dir):
+        src = os.path.join(temp_dir, "src")
+        os.makedirs(src)
+        with open(os.path.join(src, "f.txt"), "w") as f:
+            f.write("hello")
+
+        dest = os.path.join(temp_dir, "dest")
+        copied = copytree2(src, dest)
+        assert copied == os.path.join(dest, "src")
+        with open(os.path.join(copied, "f.txt")) as f:
+            assert f.read() == "hello"
+
+    def test_convert_to_bytes_edge_cases(self):
+        assert convert_to_bytes("") is None
+        assert convert_to_bytes("1k") == 1024
+        assert convert_to_bytes("1024") == 1024
+        assert convert_to_bytes("1.5G") == int(1.5 * 1024**3)
+        assert convert_to_bytes("2B") == 2
+
+    def test_check_adata_structure(self, temp_dir):
+        import anndata
+
+        adata = anndata.AnnData(X=np.zeros((2, 3), dtype=np.float32))
+        adata.obs["tile_id"] = ["t1", "t1"]
+        adata.obs["total_counts"] = np.array([1.0, 2.0])
+        adata.obsm["spatial"] = np.array([[0.0, 0.0], [1.0, 1.0]])
+        good = os.path.join(temp_dir, "good.h5ad")
+        adata.write_h5ad(good)
+        check_adata_structure(good)
+
+        bad = os.path.join(temp_dir, "bad.h5ad")
+        anndata.AnnData(X=np.zeros((1, 1), dtype=np.float32)).write_h5ad(bad)
+        with pytest.raises(KeyError):
+            check_adata_structure(bad)
+
+    def test_load_properties_from_adata(self, temp_dir):
+        import anndata
+
+        adata = anndata.AnnData(X=np.zeros((2, 3), dtype=np.float32))
+        adata.obsm["spatial"] = np.array([[0.0, 0.0], [1.0, 1.0]])
+        path = os.path.join(temp_dir, "data.h5ad")
+        adata.write_h5ad(path)
+
+        loaded = load_properties_from_adata(path, ["obsm/spatial"])
+        np.testing.assert_allclose(loaded["obsm/spatial"], [[0.0, 0.0], [1.0, 1.0]])
+
+        backed = load_properties_from_adata(path, ["obsm/spatial"], backed=True)
+        assert "obsm/spatial" in backed
+
+        with pytest.raises(TypeError):
+            load_properties_from_adata(42, ["obsm/spatial"])
+
+    def test_check_obs_unique(self):
+        import anndata
+
+        same = anndata.AnnData(X=np.zeros((2, 1), dtype=np.float32))
+        same.obs["tile_id"] = ["t1", "t1"]
+        assert check_obs_unique(same) is True
+
+        different = anndata.AnnData(X=np.zeros((2, 1), dtype=np.float32))
+        different.obs["tile_id"] = ["t1", "t2"]
+        assert check_obs_unique(different) is False
+
+    def test_h5_to_dict(self, temp_dir):
+        path = os.path.join(temp_dir, "tree.h5")
+        with h5py.File(path, "w") as f:
+            group = f.create_group("grp")
+            group.create_dataset("d", data=np.arange(3))
+
+        with h5py.File(path, "r") as f:
+            tree = h5_to_dict(f)
+
+        assert set(tree) == {"grp"}
+        assert isinstance(tree["grp"]["d"], str)
+        assert "(3,)" in tree["grp"]["d"]
+        assert tree["grp"]["d"].startswith(str(np.ndarray)) or "Dataset" in tree["grp"]["d"]
+
+    def test_write_key_to_h5(self, temp_dir):
+        path = os.path.join(temp_dir, "wr.h5")
+        with h5py.File(path, "w") as f:
+            write_key_to_h5(f, "k", np.arange(3))
+            np.testing.assert_array_equal(f["k"][:], np.arange(3))
+
+            # an existing key is overwritten in place
+            write_key_to_h5(f, "k", np.arange(3) + 10)
+            np.testing.assert_array_equal(f["k"][:], np.arange(3) + 10)
+
+            # delete_before removes the key instead of overwriting it
+            write_key_to_h5(f, "k", np.arange(3) + 100, delete_before=True)
+            assert "k" not in f
+            write_key_to_h5(f, "k", np.arange(3) + 100)
+            np.testing.assert_array_equal(f["k"][:], np.arange(3) + 100)
