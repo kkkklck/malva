@@ -1388,6 +1388,14 @@ cdef class PrefixIndex:
         cdef np.ndarray[np.uint64_t, ndim=1] sk = np.sort(kmers)
 
         self._csr_mode = True
+        # Reset the CSR result slot before the call. query_batch() early-returns
+        # (n_bkts == 0) without touching it when none of the batch's kmers are
+        # present, so a stale count from a previous query would be paired with
+        # the None buffers below and dereferenced -> SIGSEGV.
+        self._csr_n_results = 0
+        self._csr_km = None
+        self._csr_cells = None
+        self._csr_offsets = None
         try:
             self.query_batch(
                 <uint64_t*>sk.data, <uint64_t>len(sk), count_at_most, count_at_least)
