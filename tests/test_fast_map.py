@@ -1,5 +1,7 @@
 import pytest
+
 from malva.fast_map import FastMapOfMap
+
 
 class TestFastMap:
     @pytest.fixture
@@ -19,7 +21,7 @@ class TestFastMap:
         values = [100, 200, 300]
         for value in values:
             fmap.add(key, value)
-        
+
         retrieved = fmap[key]
         assert len(retrieved) == len(values)
         assert all(v in retrieved for v in values)

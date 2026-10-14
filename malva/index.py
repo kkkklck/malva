@@ -6,11 +6,12 @@
 import logging
 import os
 import re
+
 import yaml
 
-from malva.barcodes import SpatialIndex, create_spatial_index, create_singlecell_index
+from malva.barcodes import SpatialIndex, create_singlecell_index, create_spatial_index
 from malva.malva_index import MalvaIndex
-from malva.utils import check_directory_exists, check_file_exists, get_module_path, SUCCESS_MSG
+from malva.utils import SUCCESS_MSG, check_directory_exists, check_file_exists, get_module_path
 
 N_REPORT = 1_000_000
 
@@ -34,8 +35,8 @@ def load_flavor(flavor, flavors_config_path):
 
 def _parse_bam_tag_name(bam_tags_str):
     """Extract the tag name from a bam_tags string like 'CB:{cell}'."""
-    m = re.match(r'^([A-Z][A-Z0-9]):\{cell\}', bam_tags_str)
-    return m.group(1) if m else 'CB'
+    m = re.match(r"^([A-Z][A-Z0-9]):\{cell\}", bam_tags_str)
+    return m.group(1) if m else "CB"
 
 
 def _run_index(args):
@@ -52,8 +53,8 @@ def _run_index(args):
     input_type = detect_input_type(args.reads_in)
 
     # File-existence checks (skip for bulk int placeholder)
-    if input_type == 'fastq':
-        if args.flavor != 'bulk':
+    if input_type == "fastq":
+        if args.flavor != "bulk":
             for _r in args.reads_in:
                 check_file_exists(_r, except_when=False)
         else:
@@ -81,7 +82,7 @@ def _run_index(args):
             sindex.load_binary_stomics(_sindex_loc)
         else:
             sindex.load_binary(_sindex_loc)
-    elif args.flavor.startswith("sc_") or args.flavor == 'bulk':
+    elif args.flavor.startswith("sc_") or args.flavor == "bulk":
         logging.info("Creating barcode single-cell index")
         sindex = create_singlecell_index(args.spatial_bc_in)
     else:
@@ -93,10 +94,10 @@ def _run_index(args):
         sindex.save_binary(_sindex_loc)
 
     l_prefix = min(args.kmer_length // 2, 12)
-    if hasattr(args, 'l_prefix') and args.l_prefix > 0:
+    if hasattr(args, "l_prefix") and args.l_prefix > 0:
         l_prefix = args.l_prefix
 
-    jump_amount = 1 if getattr(args, 'overlapping', False) else args.kmer_length
+    jump_amount = 1 if getattr(args, "overlapping", False) else args.kmer_length
     kmer_index = MalvaIndex(
         args.index_out,
         kmer_size_initialize=args.kmer_length,
@@ -108,7 +109,7 @@ def _run_index(args):
     if args.flavor == "stereo_seq":
         kmer_index.set_barcode_index(sindex)
         kmer_index.set_spatial_coords(sindex.get_coords_stomics())
-    elif args.flavor.startswith("sc_") or args.flavor == 'bulk':
+    elif args.flavor.startswith("sc_") or args.flavor == "bulk":
         kmer_index.set_barcode_index(sindex)
     else:
         kmer_index.set_spatial_index(sindex)
@@ -117,8 +118,8 @@ def _run_index(args):
     logging.debug(f"  l_prefix={l_prefix}, l_suffix={args.kmer_length - l_prefix}")
     logging.debug(f"  Writing chunks every {args.chunksize:,} sequences")
 
-    if input_type == 'fastq':
-        if args.flavor == 'bulk':
+    if input_type == "fastq":
+        if args.flavor == "bulk":
             try:
                 args.reads_in[0] = int(args.bulk_id)
             except Exception:
@@ -133,17 +134,18 @@ def _run_index(args):
             threads=args.threads,
         )
 
-    elif input_type == 'sra':
+    elif input_type == "sra":
         from malva.utils import check_cell_string
+
         _, trim_start, trim_end = check_cell_string(_cell)
 
         # CLI args always carry a value (default 0/1 if not explicitly set)
         barcode_seg = args.sra_barcode_segment
         cdna_seg = args.sra_cdna_segment
 
-        if getattr(args, 'sra_barcode_start', None) is not None:
+        if getattr(args, "sra_barcode_start", None) is not None:
             trim_start = args.sra_barcode_start
-        if getattr(args, 'sra_barcode_end', None) is not None:
+        if getattr(args, "sra_barcode_end", None) is not None:
             trim_end = args.sra_barcode_end
 
         kmer_index.add_reads_sra(
@@ -159,13 +161,13 @@ def _run_index(args):
             cdna_segment=cdna_seg,
         )
 
-    elif input_type == 'bam':
+    elif input_type == "bam":
         # BAM barcode tag: CLI override → flavor default
-        barcode_tag = getattr(args, 'bam_barcode_tag', None)
+        barcode_tag = getattr(args, "bam_barcode_tag", None)
         if not barcode_tag:
             barcode_tag = _parse_bam_tag_name(_bam_tags)
 
-        sequence_tag = getattr(args, 'bam_sequence_tag', None) or None
+        sequence_tag = getattr(args, "bam_sequence_tag", None) or None
 
         kmer_index.add_reads_bam(
             bam_path=args.reads_in[0],
@@ -183,5 +185,6 @@ def _run_index(args):
 
 if __name__ == "__main__":
     from malva.cli import get_index_parser
+
     args = get_index_parser().parse_args()
     _run_index(args)

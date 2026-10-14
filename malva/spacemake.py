@@ -9,8 +9,7 @@ This code is adapted from spacemake.
 
 import anndata
 import numpy as np
-import pandas as pd
-from scipy.sparse import csc_matrix, csr_matrix, dok_matrix, vstack, coo_matrix
+from scipy.sparse import coo_matrix
 
 
 def nonsingular(vmin, vmax, expander=0.001, tiny=1e-15, increasing=True):
@@ -198,7 +197,9 @@ def binning_hexagon(x, y, gridsize, extent=None, last_row=False):
     return coordinates, accumulated
 
 
-def aggregate_adata_by_indices(adata, idx_to_aggregate, idx_aggregated, coordinates_aggregated=None):
+def aggregate_adata_by_indices(
+    adata, idx_to_aggregate, idx_aggregated, coordinates_aggregated=None
+):
     """
     Aggregate the data (along the `obs` dimensions) of an AnnData object by specified indices. The size
     of the resulting `obs` has to be less or equal than the size of the input.
@@ -216,19 +217,21 @@ def aggregate_adata_by_indices(adata, idx_to_aggregate, idx_aggregated, coordina
                           that were aggregated into each bin.
     """
     adata = adata[idx_to_aggregate]
-    
+
     n_bins = idx_aggregated.max() + 1
     row_indices = idx_aggregated
     col_indices = np.arange(adata.X.shape[0])
     data = np.ones_like(col_indices)
-    
-    binning_matrix = coo_matrix((data, (row_indices, col_indices)), shape=(n_bins, adata.X.shape[0])).tocsr()
+
+    binning_matrix = coo_matrix(
+        (data, (row_indices, col_indices)), shape=(n_bins, adata.X.shape[0])
+    ).tocsr()
     aggregated_data = binning_matrix.dot(adata.X)
-    
+
     has_spots = np.unique(idx_aggregated)
     filtered_data = aggregated_data[has_spots]
-    
-    aggregated_adata = anndata.AnnData(X=filtered_data, obsm={'spatial': coordinates_aggregated})
+
+    aggregated_adata = anndata.AnnData(X=filtered_data, obsm={"spatial": coordinates_aggregated})
     aggregated_adata.var_names = adata.var_names
     aggregated_adata.obs["n_joined"] = binning_matrix[has_spots].sum(axis=1)
 
@@ -256,7 +259,6 @@ def aggregate_adata_by_indices(adata, idx_to_aggregate, idx_aggregated, coordina
     aggregated_adata.uns["indices_joined_spatial_units"] = indices_joined_spatial_units
 
     return aggregated_adata
-
 
 
 def create_meshed_adata(
@@ -289,7 +291,7 @@ def create_meshed_adata(
     import numpy as np
     from sklearn.metrics.pairwise import euclidean_distances
 
-    if not mesh_type in ["circle", "hexagon"]:
+    if mesh_type not in ["circle", "hexagon"]:
         raise ValueError(f"unrecognised mesh type {mesh_type}")
 
     if mesh_type == "hexagon":

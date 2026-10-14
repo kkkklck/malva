@@ -7,16 +7,14 @@ import gzip
 import logging
 import os
 
-import numpy as np
-
 from malva.barcodes import BackgroundModel
 from malva.malva_index import MalvaIndex
 from malva.reader import iterate_fasta
 from malva.spacemake import create_meshed_adata
-from malva.utils import (check_directory_exists, check_file_exists,
-                         get_reference_cache, SUCCESS_MSG)
+from malva.utils import SUCCESS_MSG, check_directory_exists, check_file_exists, get_reference_cache
 
 N_EACH_REPORT = 100
+
 
 class MalvaReferenceNotFound(Exception):
     pass
@@ -25,7 +23,9 @@ class MalvaReferenceNotFound(Exception):
 def write_mtx_header(file, shape):
     file.write(b"%%MatrixMarket matrix coordinate real general\n")
     file.write(b"%\n")
-    file.write(f"{shape[0]:>20} {shape[1]:>20} {shape[2]:>20}\n".encode())  # We'll update the nnz at the end
+    file.write(
+        f"{shape[0]:>20} {shape[1]:>20} {shape[2]:>20}\n".encode()
+    )  # We'll update the nnz at the end
 
 
 def process_batch(
@@ -40,7 +40,7 @@ def process_batch(
     count_at_most: int = 10_000,
     count_at_least: int = 10,
     single_count: bool = False,
-    use_background_model: bool = True
+    use_background_model: bool = True,
 ):
     kmer_index.verbose = True
     results = kmer_index.where(
@@ -52,20 +52,20 @@ def process_batch(
         single_count=single_count,
         max_mem="1M",
         use_background_model=use_background_model,
-        use_batched=False
+        use_batched=False,
     )
 
     total_nnz = 0
     for i, (locs, counts, _) in enumerate(results):
         current_col = start_col + i
         gene_name = gene_names[i]
-        
+
         for loc, count in zip(locs, counts):
-            mtx_file.write(f"{loc+1} {current_col} {count}\n".encode())
-        
+            mtx_file.write(f"{loc + 1} {current_col} {count}\n".encode())
+
         feature_file.write(f"{gene_name}\n".encode())
         total_nnz += len(locs)
-    
+
     return total_nnz
 
 
@@ -88,8 +88,8 @@ def resave_h5ad(folder, kmer_index):
     adata = ad.read_mtx(matrix_file)
     adata.var_names = pd.read_csv(features_file, header=None, sep="\t")[0]
 
-    kmer_index.open(mode='r')
-    if 'spatial_coord' in kmer_index.index:
+    kmer_index.open(mode="r")
+    if "spatial_coord" in kmer_index.index:
         adata.obsm["spatial"] = kmer_index.spatial_coord[:]
     kmer_index.close()
 
@@ -109,14 +109,14 @@ def process_reference(
     count_at_most: int = 10_000,
     count_at_least: int = 10,
     single_count: bool = False,
-    batch_size: int = 500
+    batch_size: int = 500,
 ):
     kmer_index.verbose = False
-    kmer_index.open(mode='r+')
-    with open(os.path.join(folder_out, "matrix.mtx"), "wb") as mtx_file, gzip.open(
-        os.path.join(folder_out, "features.tsv.gz"), "wb"
-    ) as feature_file:
-
+    kmer_index.open(mode="r+")
+    with (
+        open(os.path.join(folder_out, "matrix.mtx"), "wb") as mtx_file,
+        gzip.open(os.path.join(folder_out, "features.tsv.gz"), "wb") as feature_file,
+    ):
         current_gene = ""
         seqs_gene = []
         current_col = 0
@@ -131,18 +131,29 @@ def process_reference(
             nonlocal current_col, total_nnz
             if batch_seqs:
                 nnz = process_batch(
-                    kmer_index, batch_seqs, batch_genes, mtx_file, feature_file, 
-                    current_col + 1, sliding_size, pct_threshold, count_at_most, 
-                    count_at_least, single_count, use_background_model
+                    kmer_index,
+                    batch_seqs,
+                    batch_genes,
+                    mtx_file,
+                    feature_file,
+                    current_col + 1,
+                    sliding_size,
+                    pct_threshold,
+                    count_at_most,
+                    count_at_least,
+                    single_count,
+                    use_background_model,
                 )
                 total_nnz += nnz
                 current_col += len(batch_seqs)
                 if verbose and (current_col % N_EACH_REPORT) < len(batch_seqs):
-                    logging.info(f"Processed {current_col} entries. Last sequence ID: {batch_genes[-1]}")
+                    logging.info(
+                        f"Processed {current_col} entries. Last sequence ID: {batch_genes[-1]}"
+                    )
 
         for seq in iterate_fasta(reference_file):
             it_gene_name = seq[0].split(":")[0]
-            
+
             if it_gene_name != current_gene:
                 if seqs_gene:
                     batch_seqs.append(seqs_gene)
@@ -151,13 +162,13 @@ def process_reference(
                         process_current_batch()
                         batch_seqs = []
                         batch_genes = []
-                        
+
                 seqs_gene = []
                 current_gene = it_gene_name
-            
+
             if seq[1] == "" or len(seq[1]) < sliding_size + kmer_index.kmer_size:
                 continue
-                
+
             seqs_gene.append(seq[1])
 
         if seqs_gene:
@@ -169,7 +180,7 @@ def process_reference(
 
     kmer_index.close()
 
-    if 'spatial_coord' in kmer_index.index:
+    if "spatial_coord" in kmer_index.index:
         n_spatial = kmer_index.n_spatial
     else:
         n_spatial = kmer_index.n_spatial
@@ -178,7 +189,9 @@ def process_reference(
         mtx_file.seek(0)
         write_mtx_header(mtx_file, (n_spatial, current_col, total_nnz))
 
-    logging.info(f"MTX file created at {folder_out} \n\twith shape: {n_spatial} x {current_col}, non-zero elements: {total_nnz}")
+    logging.info(
+        f"MTX file created at {folder_out} \n\twith shape: {n_spatial} x {current_col}, non-zero elements: {total_nnz}"
+    )
 
 
 def _run_quant(args):
@@ -192,17 +205,16 @@ def _run_quant(args):
     reference_file = get_reference_cache(args.reference)
     logging.info(f"Will load reference '{args.reference}'")
 
-
     if not check_file_exists(os.path.join(args.folder_out, "matrix.mtx")):
         background_model = None
         if args.background_model is not None:
-            logging.info(f"Loading background model")
+            logging.info("Loading background model")
             check_file_exists(args.background_model, except_when=False)
             background_model = BackgroundModel(kmer_index.kmer_size)
             background_model.load(args.background_model)
             kmer_index.set_background_model(background_model)
 
-        logging.info(f"Running pseudo-quantification")
+        logging.info("Running pseudo-quantification")
         process_reference(
             kmer_index,
             reference_file,
@@ -225,11 +237,11 @@ def _run_quant(args):
         logging.info(f"Meshing AnnData into {args.bin_size} spatial unit-side hexagons")
         mesh_adata = create_meshed_adata(
             adata,
-            1, # assume the user provides bin_size in the correct units (no rescaling!)
+            1,  # assume the user provides bin_size in the correct units (no rescaling!)
             spot_diameter_um=args.bin_size,
             spot_distance_um=args.bin_size,
             bead_diameter_um=args.bin_size,
-            mesh_type="hexagon"
+            mesh_type="hexagon",
         )
 
         h5ad_mesh_file = os.path.join(args.folder_out, f"pseudoquant_bin{args.bin_size}.h5ad")

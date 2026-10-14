@@ -7,9 +7,9 @@ import os
 import pathlib
 import pickle
 import re
-import requests
 import sqlite3
 
+import requests
 from rich.progress import track
 
 from malva.reader import iterate_fasta
@@ -21,10 +21,13 @@ ENSEMBL_REST = "https://rest.ensembl.org"
 revcomp = str.maketrans("ACGTU", "TGCAA")
 
 # ensembl fasta
-ENSEMBL_FASTA = {"mus_musculus": "Mus_musculus.GRCm39.cdna.all.fa.gz",
-                 "homo_sapiens": "Homo_sapiens.GRCh38.cdna.all.fa.gz"}
+ENSEMBL_FASTA = {
+    "mus_musculus": "Mus_musculus.GRCm39.cdna.all.fa.gz",
+    "homo_sapiens": "Homo_sapiens.GRCh38.cdna.all.fa.gz",
+}
 
 SEQDB_LOCAL_DIR = pathlib.Path.home().joinpath(".malva", "ensembl_data")
+
 
 class EnsemblLocalDB:
     """
@@ -38,7 +41,8 @@ class EnsemblLocalDB:
         index (dict): Dictionary mapping Ensembl IDs to sequences.
         gene_to_ensembl (dict): Dictionary mapping gene names to Ensembl IDs.
     """
-    def __init__(self, data_dir=SEQDB_LOCAL_DIR, species='mus_musculus'):
+
+    def __init__(self, data_dir=SEQDB_LOCAL_DIR, species="mus_musculus"):
         f"""
         Initialize the EnsemblLocalDB object.
 
@@ -47,7 +51,7 @@ class EnsemblLocalDB:
         """
         self.species = species
         self.data_dir = os.path.join(data_dir, self.species)
-        self.db_path = os.path.join(self.data_dir, 'ensembl.db')
+        self.db_path = os.path.join(self.data_dir, "ensembl.db")
         pathlib.Path(self.data_dir).mkdir(parents=True, exist_ok=True)
         self._create_tables()
 
@@ -64,17 +68,19 @@ class EnsemblLocalDB:
             cursor = conn.cursor()
 
             # Single table for all data with a composite primary key
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS gene_data (
                     gene_name TEXT COLLATE NOCASE,
                     ensembl_id TEXT,
                     sequence TEXT,
                     PRIMARY KEY (gene_name, ensembl_id)
                 ) WITHOUT ROWID
-            ''')
+            """)
 
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_gene_name ON gene_data (gene_name COLLATE NOCASE)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_ensembl_id ON gene_data (ensembl_id)')
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_gene_name ON gene_data (gene_name COLLATE NOCASE)"
+            )
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_ensembl_id ON gene_data (ensembl_id)")
             conn.commit()
 
     def database_exists(self):
@@ -86,20 +92,22 @@ class EnsemblLocalDB:
         """
         if not os.path.exists(self.db_path):
             return False
-        
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
                 # Check if the gene_data table exists
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='gene_data'")
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='gene_data'"
+                )
                 if not cursor.fetchone():
                     return False
-                
+
                 # Check if the gene_data table contains any rows
                 cursor.execute("SELECT COUNT(*) FROM gene_data")
                 count = cursor.fetchone()[0]
-                
+
                 return count > 0
         except sqlite3.Error:
             # If there's any database error, consider the database as not properly set up
@@ -134,24 +142,30 @@ class EnsemblLocalDB:
         print(f"Indexing {fasta_file}...")
         data_to_insert = []
         for record in track(iterate_fasta(fasta_file), "Indexing EnsemblLocalDB"):
-            ensembl_id = record[0].split('.')[0]
+            ensembl_id = record[0].split(".")[0]
             sequence = str(record[1])
-            gene_name = record[0].split('gene_symbol:')[1].split()[0] if 'gene_symbol:' in record[0] else None
-            
+            gene_name = (
+                record[0].split("gene_symbol:")[1].split()[0]
+                if "gene_symbol:" in record[0]
+                else None
+            )
+
             if gene_name:
                 data_to_insert.append((gene_name, ensembl_id, sequence))
-        
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.executemany('INSERT OR REPLACE INTO gene_data (gene_name, ensembl_id, sequence) VALUES (?, ?, ?)', data_to_insert)
+            cursor.executemany(
+                "INSERT OR REPLACE INTO gene_data (gene_name, ensembl_id, sequence) VALUES (?, ?, ?)",
+                data_to_insert,
+            )
             conn.commit()
-
 
     def save_index(self):
         """
         Save the indexed data to disk using pickle.
         """
-        with open(os.path.join(self.data_dir, 'index.pkl'), 'wb') as f:
+        with open(os.path.join(self.data_dir, "index.pkl"), "wb") as f:
             pickle.dump((self.index, self.gene_to_ensembl), f)
 
     def load_index(self):
@@ -161,14 +175,14 @@ class EnsemblLocalDB:
         Returns:
             bool: True if the index was successfully loaded, False otherwise.
         """
-        index_path = os.path.join(self.data_dir, 'index.pkl')
+        index_path = os.path.join(self.data_dir, "index.pkl")
         if os.path.exists(index_path):
-            with open(index_path, 'rb') as f:
+            with open(index_path, "rb") as f:
                 self.index, self.gene_to_ensembl = pickle.load(f)
             return True
         return False
 
-    def get_from_gene(self, gene_id, seq_type='cdna'):
+    def get_from_gene(self, gene_id, seq_type="cdna"):
         """
         Retrieve cDNA sequences for a given gene ID or Ensembl ID.
 
@@ -185,7 +199,7 @@ class EnsemblLocalDB:
         Raises:
             ValueError: If seq_type is not 'cdna'.
         """
-        if seq_type != 'cdna':
+        if seq_type != "cdna":
             raise ValueError("Only 'cdna' sequence type is currently supported")
 
         if not self.database_exists():
@@ -195,19 +209,24 @@ class EnsemblLocalDB:
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            
+
             # Use a single query to fetch all relevant sequences
-            cursor.execute('''
+            cursor.execute(
+                """
                 SELECT sequence FROM gene_data
                 WHERE gene_name = ? COLLATE NOCASE OR ensembl_id = ? COLLATE NOCASE
-            ''', (gene_id, gene_id))
-            
+            """,
+                (gene_id, gene_id),
+            )
+
             sequences = [row[0] for row in cursor.fetchall()]
 
         return sequences
 
+
 # the databases that have been loaded into memory
 _localdbs = {}
+
 
 def process_dna_string(sequence):
     """
@@ -237,6 +256,7 @@ def process_dna_string(sequence):
         # else: skip invalid characters entirely
 
     return {"sequence": "".join(result)}
+
 
 def parse_multifasta(fasta_string):
     """
@@ -422,7 +442,7 @@ def process_ensembl_string(ensembl_string):
 def get_from_gene(gene_id: str, species: str = "homo_sapiens", seqtype: str = "genomic"):
     if species not in _localdbs:
         _localdbs[species] = EnsemblLocalDB(species=species)
-    
+
     _localdb = _localdbs[species]
 
     if _localdb.database_exists():
@@ -502,7 +522,9 @@ def validate_and_infer_query(input_string):
             inferred_ensembl.append(line)
             input_types.add("ensembl")
         else:
-            raise ValueError(f"Invalid input: '{line}'. Please enter valid gene IDs or DNA sequences.")
+            raise ValueError(
+                f"Invalid input: '{line}'. Please enter valid gene IDs or DNA sequences."
+            )
 
     if len(input_types) > 1:
         raise ValueError(
@@ -516,4 +538,6 @@ def validate_and_infer_query(input_string):
     elif inferred_sequences:
         return "".join(inferred_sequences)
     else:
-        raise ValueError("No valid gene IDs, Ensembl IDs, or DNA sequences detected. Please check your input.")
+        raise ValueError(
+            "No valid gene IDs, Ensembl IDs, or DNA sequences detected. Please check your input."
+        )

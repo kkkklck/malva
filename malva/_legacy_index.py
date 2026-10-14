@@ -21,7 +21,6 @@ import math
 import os
 
 import h5py
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -84,9 +83,7 @@ class MalvaIndex:
 
         if "n_chunks" in attrs:
             self.n_chunks = int(attrs["n_chunks"])
-            self.data_lengths = [
-                len(self.index[f"index_{c}_data"]) for c in range(self.n_chunks)
-            ]
+            self.data_lengths = [len(self.index[f"index_{c}_data"]) for c in range(self.n_chunks)]
 
         if "project_id_shift" in attrs:
             self.PROJECT_ID_SHIFT = int(attrs["project_id_shift"])
@@ -105,8 +102,7 @@ class MalvaIndex:
             self.project_mapping = {int(k): v for k, v in json.loads(raw).items()}
 
         logger.debug(
-            "Opened legacy index at %s  "
-            "(kmer_size=%d, n_spatial=%d, n_chunks=%d)",
+            "Opened legacy index at %s  (kmer_size=%d, n_spatial=%d, n_chunks=%d)",
             self.index_dir,
             self.kmer_size,
             self.n_spatial,

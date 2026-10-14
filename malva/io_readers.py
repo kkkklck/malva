@@ -22,7 +22,6 @@ from typing import Optional
 
 import numpy as np
 
-
 _BATCH_SIZE = 50_000
 _INITIAL_CAP = 50_000_000
 
@@ -36,18 +35,18 @@ def detect_input_type(reads_in: list) -> str:
     Single-element lists are dispatched by file extension.
     """
     if len(reads_in) == 2:
-        return 'fastq'
+        return "fastq"
     if isinstance(reads_in[0], int):
-        return 'fastq'
+        return "fastq"
 
     path = str(reads_in[0]).lower()
     # Use endswith rather than splitext so .sralite is matched correctly
     # (splitext('.sralite') → ('.sralite',) but that still works — just
     # be explicit to avoid any ambiguity).
-    if path.endswith('.sra') or path.endswith('.sralite'):
-        return 'sra'
-    if path.endswith('.bam'):
-        return 'bam'
+    if path.endswith(".sra") or path.endswith(".sralite"):
+        return "sra"
+    if path.endswith(".bam"):
+        return "bam"
     raise ValueError(
         f"Cannot determine input type from '{reads_in[0]}'. "
         "Provide a single .sra / .sralite or .bam file, or two FASTQ files for R1/R2."
@@ -57,6 +56,7 @@ def detect_input_type(reads_in: list) -> str:
 # ---------------------------------------------------------------------------
 # SRA
 # ---------------------------------------------------------------------------
+
 
 def process_sra_reads(
     sra_path: str,
@@ -95,9 +95,7 @@ def process_sra_reads(
         )
 
     from malva.fastq_processing import process_sra_batch
-    from malva.indexes import (
-        write_sorted_chunk_py, build_index_radix_py, _write_empty_index
-    )
+    from malva.indexes import write_sorted_chunk_py
 
     if jump_amount == 0:
         jump_amount = kmer_size
@@ -111,10 +109,13 @@ def process_sra_reads(
 
     logging.info(
         "SRA mode: barcode=segment[%d][%d:%d], cDNA=segment[%d]",
-        barcode_segment, trim_start, trim_end, cdna_segment,
+        barcode_segment,
+        trim_start,
+        trim_end,
+        cdna_segment,
     )
 
-    chunk_dir = os.path.join(output_dir, '_chunks')
+    chunk_dir = os.path.join(output_dir, "_chunks")
     os.makedirs(chunk_dir, exist_ok=True)
 
     cap = min(chunksize, _INITIAL_CAP)
@@ -136,11 +137,16 @@ def process_sra_reads(
             while True:
                 new_tp = process_sra_batch(
                     segs_batch,
-                    barcode_segment, cdna_segment,
+                    barcode_segment,
+                    cdna_segment,
                     spatial_index,
-                    ak, ac, tp,
-                    trim_start, trim_end,
-                    kmer_size, jump_amount,
+                    ak,
+                    ac,
+                    tp,
+                    trim_start,
+                    trim_end,
+                    kmer_size,
+                    jump_amount,
                     cap,
                 )
                 if new_tp == -1:
@@ -151,10 +157,12 @@ def process_sra_reads(
                 break
 
             if tp >= chunksize:
-                cp = os.path.join(chunk_dir, f'chunk_{chunk_num}.bin')
+                cp = os.path.join(chunk_dir, f"chunk_{chunk_num}.bin")
                 logging.info(
                     "  Writing chunk %d (%s pairs, total %s)",
-                    chunk_num, f"{tp:,}", f"{total_pairs + tp:,}",
+                    chunk_num,
+                    f"{tp:,}",
+                    f"{total_pairs + tp:,}",
                 )
                 write_sorted_chunk_py(ak, ac, tp, cp)
                 chunk_paths.append(cp)
@@ -168,24 +176,39 @@ def process_sra_reads(
                 if dt > 0:
                     logging.info(
                         "  Read %s spots, %s pairs (%.0f spots/s)",
-                        f"{ns:,}", f"{total_pairs + tp:,}", n_report / dt,
+                        f"{ns:,}",
+                        f"{total_pairs + tp:,}",
+                        n_report / dt,
                     )
                 t0 = time.time()
 
     logging.info(
         "SRA: %s spots, %s pairs, %d chunks",
-        f"{ns:,}", f"{total_pairs + tp:,}", chunk_num,
+        f"{ns:,}",
+        f"{total_pairs + tp:,}",
+        chunk_num,
     )
 
     n_cells = spatial_index.num_items() if spatial_index is not None else 0
-    return _finalise(ak, ac, tp, chunk_num, chunk_paths, chunk_dir,
-                     output_dir, kmer_size, l_prefix,
-                     n_cells=n_cells, extra_meta=extra_meta)
+    return _finalise(
+        ak,
+        ac,
+        tp,
+        chunk_num,
+        chunk_paths,
+        chunk_dir,
+        output_dir,
+        kmer_size,
+        l_prefix,
+        n_cells=n_cells,
+        extra_meta=extra_meta,
+    )
 
 
 # ---------------------------------------------------------------------------
 # BAM
 # ---------------------------------------------------------------------------
+
 
 def process_bam_reads(
     bam_path: str,
@@ -197,7 +220,7 @@ def process_bam_reads(
     chunksize: int = 100_000_000,
     n_report: int = 1_000_000,
     threads: int = 1,
-    barcode_tag: str = 'CB',
+    barcode_tag: str = "CB",
     sequence_tag: Optional[str] = None,
     extra_meta: Optional[dict] = None,
 ) -> list:
@@ -223,9 +246,7 @@ def process_bam_reads(
         )
 
     from malva.fastq_processing import process_bam_batch
-    from malva.indexes import (
-        write_sorted_chunk_py, build_index_radix_py, _write_empty_index
-    )
+    from malva.indexes import write_sorted_chunk_py
 
     if jump_amount == 0:
         jump_amount = kmer_size
@@ -242,7 +263,7 @@ def process_bam_reads(
     _N_PROBE = 200
     _probe_bc_missing = 0
     _probe_tags: dict[str, int] = {}
-    with pysam.AlignmentFile(bam_path, 'rb', threads=threads) as _bam_probe:
+    with pysam.AlignmentFile(bam_path, "rb", threads=threads) as _bam_probe:
         for _i, _read in enumerate(_bam_probe.fetch(until_eof=True)):
             if _i >= _N_PROBE:
                 break
@@ -262,16 +283,20 @@ def process_bam_reads(
                 "BAM: barcode tag '%s' absent in %.0f%% of first %d reads. "
                 "Tags present (by frequency): %s. "
                 "Use --bam-barcode-tag to specify the correct tag.",
-                barcode_tag, _bc_miss_rate * 100, _probe_total,
+                barcode_tag,
+                _bc_miss_rate * 100,
+                _probe_total,
                 ", ".join(f"'{t}' ({_probe_tags[t]}x)" for t in _present[:10]),
             )
         else:
             logging.debug(
                 "BAM probe (%d reads): tag '%s' found in %.0f%% of reads.",
-                _probe_total, barcode_tag, (1 - _bc_miss_rate) * 100,
+                _probe_total,
+                barcode_tag,
+                (1 - _bc_miss_rate) * 100,
             )
 
-    chunk_dir = os.path.join(output_dir, '_chunks')
+    chunk_dir = os.path.join(output_dir, "_chunks")
     os.makedirs(chunk_dir, exist_ok=True)
 
     cap = min(chunksize, _INITIAL_CAP)
@@ -292,10 +317,14 @@ def process_bam_reads(
         nonlocal tp, cap, ak, ac
         while True:
             new_tp = process_bam_batch(
-                bc_batch, seq_batch,
+                bc_batch,
+                seq_batch,
                 spatial_index,
-                ak, ac, tp,
-                kmer_size, jump_amount,
+                ak,
+                ac,
+                tp,
+                kmer_size,
+                jump_amount,
                 cap,
             )
             if new_tp == -1:
@@ -307,7 +336,7 @@ def process_bam_reads(
         bc_batch.clear()
         seq_batch.clear()
 
-    with pysam.AlignmentFile(bam_path, 'rb', threads=threads) as bam:
+    with pysam.AlignmentFile(bam_path, "rb", threads=threads) as bam:
         for read in bam.fetch(until_eof=True):
             ns += 1
 
@@ -332,10 +361,12 @@ def process_bam_reads(
                 _flush_bam_batch()
 
                 if tp >= chunksize:
-                    cp = os.path.join(chunk_dir, f'chunk_{chunk_num}.bin')
+                    cp = os.path.join(chunk_dir, f"chunk_{chunk_num}.bin")
                     logging.info(
                         "  Writing chunk %d (%s pairs, total %s)",
-                        chunk_num, f"{tp:,}", f"{total_pairs + tp:,}",
+                        chunk_num,
+                        f"{tp:,}",
+                        f"{total_pairs + tp:,}",
                     )
                     write_sorted_chunk_py(ak, ac, tp, cp)
                     chunk_paths.append(cp)
@@ -349,7 +380,9 @@ def process_bam_reads(
                     if dt > 0:
                         logging.info(
                             "  Read %s reads, %s pairs (%.0f reads/s)",
-                            f"{ns:,}", f"{total_pairs + tp:,}", n_report / dt,
+                            f"{ns:,}",
+                            f"{total_pairs + tp:,}",
+                            n_report / dt,
                         )
                     t0 = time.time()
 
@@ -358,33 +391,48 @@ def process_bam_reads(
 
     logging.info(
         "BAM: %s reads, %s pairs, %d chunks",
-        f"{ns:,}", f"{total_pairs + tp:,}", chunk_num,
+        f"{ns:,}",
+        f"{total_pairs + tp:,}",
+        chunk_num,
     )
     if ns > 0 and ns_bc_missing / ns > 0.5:
         logging.warning(
             "BAM: tag '%s' was missing in %s/%s reads (%.0f%%). "
             "The index will likely be empty. "
             "Use --bam-barcode-tag to specify the correct tag.",
-            barcode_tag, f"{ns_bc_missing:,}", f"{ns:,}",
+            barcode_tag,
+            f"{ns_bc_missing:,}",
+            f"{ns:,}",
             ns_bc_missing / ns * 100,
         )
 
     n_cells = spatial_index.num_items() if spatial_index is not None else 0
-    return _finalise(ak, ac, tp, chunk_num, chunk_paths, chunk_dir,
-                     output_dir, kmer_size, l_prefix,
-                     n_cells=n_cells, extra_meta=extra_meta)
+    return _finalise(
+        ak,
+        ac,
+        tp,
+        chunk_num,
+        chunk_paths,
+        chunk_dir,
+        output_dir,
+        kmer_size,
+        l_prefix,
+        n_cells=n_cells,
+        extra_meta=extra_meta,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _grow(ak: np.ndarray, ac: np.ndarray, new_cap: int):
     """Double-and-copy numpy accumulation buffers."""
     ak_new = np.empty(new_cap, dtype=np.uint64)
     ac_new = np.empty(new_cap, dtype=np.uint32)
-    ak_new[:len(ak)] = ak
-    ac_new[:len(ac)] = ac
+    ak_new[: len(ak)] = ak
+    ac_new[: len(ac)] = ac
     return ak_new, ac_new
 
 
@@ -397,25 +445,33 @@ def _patch_meta(output_dir: str, n_cells: int, extra: dict) -> None:
     that file, overwrites n_cells with the real value, merges in any extra
     fields, and writes it back — preserving magic, version, n_kmers, etc.
     """
-    meta_path = os.path.join(output_dir, 'meta.json')
+    meta_path = os.path.join(output_dir, "meta.json")
     try:
-        with open(meta_path, 'r') as f:
+        with open(meta_path, "r") as f:
             meta = json.load(f)
-        meta['n_cells'] = int(n_cells)
+        meta["n_cells"] = int(n_cells)
         meta.update(extra)
-        with open(meta_path, 'w') as f:
+        with open(meta_path, "w") as f:
             json.dump(meta, f, indent=2)
     except (OSError, json.JSONDecodeError) as exc:
         logging.warning("Could not patch meta.json: %s", exc)
 
 
-def _finalise(ak, ac, tp, chunk_num, chunk_paths, chunk_dir,
-              output_dir, kmer_size, l_prefix,
-              n_cells: int = 0, extra_meta: Optional[dict] = None):
+def _finalise(
+    ak,
+    ac,
+    tp,
+    chunk_num,
+    chunk_paths,
+    chunk_dir,
+    output_dir,
+    kmer_size,
+    l_prefix,
+    n_cells: int = 0,
+    extra_meta: Optional[dict] = None,
+):
     """Handle the remaining data after the read loop and return chunk paths."""
-    from malva.indexes import (
-        write_sorted_chunk_py, build_index_radix_py, _write_empty_index
-    )
+    from malva.indexes import _write_empty_index, build_index_radix_py, write_sorted_chunk_py
 
     extra = extra_meta or {}
 
@@ -427,8 +483,7 @@ def _finalise(ak, ac, tp, chunk_num, chunk_paths, chunk_dir,
             "(2) all barcodes are absent from the spatial barcode index; "
             "(3) the file contains no reads with a valid barcode+cDNA pair."
         )
-        _write_empty_index(output_dir, kmer_size, l_prefix,
-                           kmer_size - l_prefix, 0)
+        _write_empty_index(output_dir, kmer_size, l_prefix, kmer_size - l_prefix, 0)
         return []
 
     if chunk_num == 0:
@@ -440,7 +495,7 @@ def _finalise(ak, ac, tp, chunk_num, chunk_paths, chunk_dir,
         return []
 
     if tp > 0:
-        cp = os.path.join(chunk_dir, f'chunk_{chunk_num}.bin')
+        cp = os.path.join(chunk_dir, f"chunk_{chunk_num}.bin")
         logging.info("  Writing final chunk %d (%s pairs)", chunk_num, f"{tp:,}")
         write_sorted_chunk_py(ak, ac, tp, cp)
         chunk_paths.append(cp)

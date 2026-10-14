@@ -9,27 +9,31 @@ import os
 import shutil
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from threading import current_thread, main_thread
-
-import numpy as np
-from rich.progress import track
 
 
-def combine_indices(combine_dir, project_uuids=None, project_id_offset=0,
-                           merge_projects=False, project_id_shift=23,
-                           cell_id_mask=0x007FFFFF, verbose=False):
+def combine_indices(
+    combine_dir,
+    project_uuids=None,
+    project_id_offset=0,
+    merge_projects=False,
+    project_id_shift=23,
+    cell_id_mask=0x007FFFFF,
+    verbose=False,
+):
     """Merge multiple per-sample indices into one."""
     from malva.indexes import merge_prefix_indices
 
     if project_uuids is not None:
         subdirs = [os.path.join(combine_dir, puuid) for puuid in project_uuids]
     else:
-        subdirs = sorted([
-            os.path.join(combine_dir, d)
-            for d in os.listdir(combine_dir)
-            if os.path.isdir(os.path.join(combine_dir, d))
-            and os.path.exists(os.path.join(combine_dir, d, 'meta.json'))
-        ])
+        subdirs = sorted(
+            [
+                os.path.join(combine_dir, d)
+                for d in os.listdir(combine_dir)
+                if os.path.isdir(os.path.join(combine_dir, d))
+                and os.path.exists(os.path.join(combine_dir, d, "meta.json"))
+            ]
+        )
 
     if len(subdirs) == 0:
         raise ValueError(f"No indices found in {combine_dir}")
@@ -38,7 +42,7 @@ def combine_indices(combine_dir, project_uuids=None, project_id_offset=0,
     index_dirs = []
 
     for idx, subdir in enumerate(subdirs):
-        if not os.path.exists(os.path.join(subdir, 'meta.json')):
+        if not os.path.exists(os.path.join(subdir, "meta.json")):
             logging.warning(f"Skipping {subdir}: no meta.json found")
             continue
 
@@ -52,7 +56,7 @@ def combine_indices(combine_dir, project_uuids=None, project_id_offset=0,
 
     logging.info(f"Merging {len(index_dirs)} prefix indices from {combine_dir}")
 
-    output_dir = os.path.join(combine_dir, '_merged_index')
+    output_dir = os.path.join(combine_dir, "_merged_index")
 
     merge_prefix_indices(
         index_dirs=index_dirs,
@@ -64,16 +68,16 @@ def combine_indices(combine_dir, project_uuids=None, project_id_offset=0,
         verbose=verbose,
     )
 
-    for fname in ['pi.bin', 'suffixes.bin', 'data.bin', 'meta.json']:
+    for fname in ["pi.bin", "suffixes.bin", "data.bin", "meta.json"]:
         src = os.path.join(output_dir, fname)
         dst = os.path.join(combine_dir, fname)
         if os.path.exists(src):
             shutil.move(src, dst)
 
     for subdir in index_dirs:
-        coord_path = os.path.join(subdir, 'spatial_coord.npy')
+        coord_path = os.path.join(subdir, "spatial_coord.npy")
         if os.path.exists(coord_path):
-            shutil.copy2(coord_path, os.path.join(combine_dir, 'spatial_coord.npy'))
+            shutil.copy2(coord_path, os.path.join(combine_dir, "spatial_coord.npy"))
             break
 
     if os.path.exists(output_dir):
@@ -83,8 +87,15 @@ def combine_indices(combine_dir, project_uuids=None, project_id_offset=0,
     return project_mapping, len(index_dirs)
 
 
-def process_group(group_idx, group_dirs, base_dir, project_uuids,
-                  merge_projects, project_id_offset=0, verbose=False):
+def process_group(
+    group_idx,
+    group_dirs,
+    base_dir,
+    project_uuids,
+    merge_projects,
+    project_id_offset=0,
+    verbose=False,
+):
     """Merge one group of indices during hierarchical combining."""
     parent_dir = os.path.dirname(os.path.abspath(base_dir))
     temp_group_dir = tempfile.mkdtemp(prefix="malva_pfix_group_", dir=parent_dir)
@@ -108,15 +119,18 @@ def process_group(group_idx, group_dirs, base_dir, project_uuids,
     return group_idx, mapping, temp_group_dir
 
 
-def hierarchical_combine(base_dir, project_uuids=None,
-                                merge_projects=False, group_size=16,
-                                threads=1, verbose=False):
+def hierarchical_combine(
+    base_dir, project_uuids=None, merge_projects=False, group_size=16, threads=1, verbose=False
+):
     """Hierarchically merge many indices in parallel groups, then final merge."""
-    all_indices = sorted([
-        d for d in os.listdir(base_dir)
-        if os.path.isdir(os.path.join(base_dir, d))
-        and os.path.exists(os.path.join(base_dir, d, 'meta.json'))
-    ])
+    all_indices = sorted(
+        [
+            d
+            for d in os.listdir(base_dir)
+            if os.path.isdir(os.path.join(base_dir, d))
+            and os.path.exists(os.path.join(base_dir, d, "meta.json"))
+        ]
+    )
 
     if len(all_indices) == 0:
         raise ValueError(f"No indices found in {base_dir}")
@@ -136,7 +150,7 @@ def hierarchical_combine(base_dir, project_uuids=None,
     groups = []
     current_offset = 0
     for i in range(0, len(all_indices), group_size):
-        group = all_indices[i:i + group_size]
+        group = all_indices[i : i + group_size]
         groups.append((len(groups), group, current_offset))
         current_offset += len(group)
 
@@ -144,8 +158,14 @@ def hierarchical_combine(base_dir, project_uuids=None,
     with ProcessPoolExecutor(max_workers=threads) as executor:
         futures = {
             executor.submit(
-                process_group, group_idx, group_dirs, base_dir,
-                project_uuids, merge_projects, offset, verbose
+                process_group,
+                group_idx,
+                group_dirs,
+                base_dir,
+                project_uuids,
+                merge_projects,
+                offset,
+                verbose,
             ): group_idx
             for group_idx, group_dirs, offset in groups
         }
@@ -179,7 +199,7 @@ def hierarchical_combine(base_dir, project_uuids=None,
         verbose=verbose,
     )
 
-    for fname in ['pi.bin', 'suffixes.bin', 'data.bin', 'meta.json', 'spatial_coord.npy']:
+    for fname in ["pi.bin", "suffixes.bin", "data.bin", "meta.json", "spatial_coord.npy"]:
         src = os.path.join(final_temp_dir, fname)
         dst = os.path.join(base_dir, fname)
         if os.path.exists(src):
@@ -193,12 +213,12 @@ def hierarchical_combine(base_dir, project_uuids=None,
             all_mappings[str(global_chunk_idx)] = [proj_id, proj_uuid]
             global_chunk_idx += 1
 
-    meta_path = os.path.join(base_dir, 'meta.json')
+    meta_path = os.path.join(base_dir, "meta.json")
     if os.path.exists(meta_path):
-        with open(meta_path, 'r') as f:
+        with open(meta_path, "r") as f:
             meta = json.load(f)
-        meta['project_mapping'] = all_mappings
-        with open(meta_path, 'w') as f:
+        meta["project_mapping"] = all_mappings
+        with open(meta_path, "w") as f:
             json.dump(meta, f, indent=2)
 
     for temp_dir in intermediate_dirs:
@@ -212,7 +232,7 @@ def hierarchical_combine(base_dir, project_uuids=None,
 
 def _run_combine(args):
     """CLI entry point for combining prefix indices."""
-    from malva.utils import check_directory_exists, check_file_exists, SUCCESS_MSG
+    from malva.utils import SUCCESS_MSG, check_directory_exists, check_file_exists
 
     if not check_directory_exists(args.index_in):
         logging.error("Base directory does not exist")
@@ -223,14 +243,15 @@ def _run_combine(args):
         with open(args.uuid) as f:
             project_uuids = [line.rstrip() for line in f]
 
-    if os.path.exists(os.path.join(args.index_in, 'meta.json')):
+    if os.path.exists(os.path.join(args.index_in, "meta.json")):
         logging.warning("Combined index already exists")
         return
 
     index_dirs = [
-        d for d in os.listdir(args.index_in)
+        d
+        for d in os.listdir(args.index_in)
         if os.path.isdir(os.path.join(args.index_in, d))
-        and os.path.exists(os.path.join(args.index_in, d, 'meta.json'))
+        and os.path.exists(os.path.join(args.index_in, d, "meta.json"))
     ]
 
     if len(index_dirs) <= 16:

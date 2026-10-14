@@ -6,22 +6,20 @@
 import io
 import zipfile
 from datetime import datetime
-import base64
-from pathlib import Path
-import numpy as np
+
 
 class HTMLReportGenerator:
     def __init__(self, session_data):
         """Initialize with session data"""
         self.session_data = session_data
-        
+
     def _create_html(self) -> str:
         """Create HTML report"""
         # Get timestamp
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         # Start HTML content
-        html_content = f'''
+        html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -125,22 +123,22 @@ class HTMLReportGenerator:
     <div class="sequence-info">
         <pre class="sequence">{self._format_sequences()}</pre>
     </div>
-'''
+"""
 
         # Add visualization section if available
         if "where_abundant" in self.session_data:
             html_content += self._create_visualization_section()
 
         # Add coverage plot placeholder
-        html_content += '''
+        html_content += """
     <h2>Sequence Coverage</h2>
     <div class="note">
         Coverage plot showing query sequence matches will be available in future updates.
     </div>
-'''
+"""
 
         # Add file information
-        html_content += '''
+        html_content += """
     <h2>Additional Files</h2>
     <table class="info-table">
         <tr>
@@ -167,42 +165,42 @@ class HTMLReportGenerator:
     </div>
 </body>
 </html>
-'''
+"""
         return html_content
-    
+
     def _format_sequences(self) -> str:
         """Format sequences for display"""
         sequences = self._get_sequences()
         formatted = []
-        
+
         for idx, seq in enumerate(sequences, 1):
-            if isinstance(seq, dict) and 'header' in seq:
-                header = seq['header']
-                sequence = seq['sequence']
+            if isinstance(seq, dict) and "header" in seq:
+                header = seq["header"]
+                sequence = seq["sequence"]
             else:
                 if self.session_data.get("query_term", "").startswith(("gene:", "ensembl:")):
                     header = f">query_{self.session_data['query_term']}"
                 else:
                     header = f">query_sequence_{idx}"
                 sequence = seq
-            
+
             # Format sequence with line breaks every 60 characters
-            formatted_seq = '\n'.join(sequence[i:i+60] for i in range(0, len(sequence), 60))
+            formatted_seq = "\n".join(sequence[i : i + 60] for i in range(0, len(sequence), 60))
             formatted.append(f"{header}\n{formatted_seq}")
-        
-        return '\n\n'.join(formatted)
-    
+
+        return "\n\n".join(formatted)
+
     def _create_visualization_section(self) -> str:
         """Create visualization section of the report"""
         # Add placeholder for static visualization image
-        return '''
+        return """
     <h2>Search Results Visualization</h2>
     <div class="visualization">
         <p>The interactive visualization from the web interface is available in the results view.</p>
         <!-- Static visualization image would be added here -->
     </div>
-'''
-    
+"""
+
     def _get_sequences(self) -> list:
         """Extract sequences from session data"""
         sequences = []
@@ -212,27 +210,27 @@ class HTMLReportGenerator:
         else:
             sequences.append(query_seq)
         return sequences
-    
+
     def _create_fasta(self) -> str:
         """Create FASTA format file"""
         sequences = self._get_sequences()
         fasta_content = []
-        
+
         for idx, seq in enumerate(sequences, 1):
-            if isinstance(seq, dict) and 'header' in seq:
-                header = seq['header']
-                sequence = seq['sequence']
+            if isinstance(seq, dict) and "header" in seq:
+                header = seq["header"]
+                sequence = seq["sequence"]
             else:
                 if self.session_data.get("query_term", "").startswith(("gene:", "ensembl:")):
                     header = f">query_{self.session_data['query_term']}"
                 else:
                     header = f">query_sequence_{idx}"
                 sequence = seq
-            
+
             fasta_content.append(f"{header}\n{sequence}")
-        
+
         return "\n".join(fasta_content)
-    
+
     def _create_summary(self) -> str:
         """Create summary text file"""
         summary_lines = [
@@ -247,25 +245,25 @@ class HTMLReportGenerator:
             f"Low Complexity Filter: {self.session_data.get('low_complexity_filter', 'N/A')}",
             f"K-mer Presence Threshold: {self.session_data.get('pct_threshold', 'N/A')}",
         ]
-        
+
         return "\n".join(summary_lines)
-    
+
     def create_report_zip(self) -> bytes:
         """Create ZIP file containing all report components"""
         zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # Add HTML report
-            zip_file.writestr('report.html', self._create_html())
-            
+            zip_file.writestr("report.html", self._create_html())
+
             # Add FASTA file
-            zip_file.writestr('queries.fa', self._create_fasta())
-            
+            zip_file.writestr("queries.fa", self._create_fasta())
+
             # Add log file
-            zip_file.writestr('malva.log', "Malva log content will be added here\n")
-            
+            zip_file.writestr("malva.log", "Malva log content will be added here\n")
+
             # Add summary file
-            zip_file.writestr('summary.txt', self._create_summary())
-        
+            zip_file.writestr("summary.txt", self._create_summary())
+
         zip_buffer.seek(0)
         return zip_buffer.getvalue()
