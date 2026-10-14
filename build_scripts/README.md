@@ -56,6 +56,19 @@ bash build_scripts/distribute_container.sh wheelhouse/malva-*.whl
 # → malva_dist/malva  (run with ./malva_dist/malva --help)
 ```
 
+## Regenerating `setup.py`
+
+`pyproject.toml` is the source of truth; the root `setup.py` is generated from
+it so the setuptools build paths above keep working. Regenerate (and commit) it
+whenever the metadata changes:
+
+```bash
+uvx --from poetry python build_scripts/generate_setup.py
+```
+
+`--check` regenerates in memory and exits non-zero if `setup.py` is stale, so a
+CI job can enforce the invariant.
+
 ## Testing the wheel
 
 ```bash
