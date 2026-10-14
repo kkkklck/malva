@@ -1,0 +1,113 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# pull_request runs on GitHub-hosted runners: pull-request code is untrusted and
+# must not run on the deployment host. push to main runs on the sandboxed
+# self-hosted runner provided at the organisation level (malva-bio).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+# least privilege: every job only needs to read the repository
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64"]') }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+      - run: uv run --no-project ruff check .
+      - run: uv run --no-project ruff format --check .
+
+  # ty only checks the pure-Python subset (tests/); the compiled .pyx modules
+  # carry no stubs, so the unresolved-import rule is disabled in pyproject.toml.
+  typecheck:
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64"]') }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+      - run: uv run --no-project ty check
+
+  # fails if any third-party import is not declared in pyproject.toml
+  dependencies:
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64"]') }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+      - run: uv run --no-project deptry .
+
+  # audits the licence of every installed dependency; fails only on a dependency
+  # that is verifiably closed-source (unknown/unlabelled licences are reported
+  # but do not fail). malva itself is allowed: it is deliberately academic
+  # non-commercial. The full report is uploaded for inspection.
+  licenses:
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64"]') }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+      - run: >-
+          uv run --no-project pip-licenses
+          --format=json --with-urls --output-file licenses.json
+      - run: >-
+          uv run --no-project python scripts/check_licenses.py
+          licenses.json --allow malva
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: dependency-licenses
+          path: licenses.json
+
+  test:
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64"]') }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv run --no-project python -m pytest -q --durations=25
+
+  # statement coverage over the Python and Cython sources. The Cython half needs
+  # a line-traced build (MALVA_DEBUG_BUILD=1) plus the Cython.Coverage plugin,
+  # both wired in here. Reported, not gated: the XML is uploaded for inspection.
+  coverage:
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted","linux","x64"]') }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+        with:
+          debug-build: "1"
+      - run: >-
+          uv run --no-project python -m pytest -q
+          --cov=malva --cov-report=xml:coverage.xml --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-report
+          path: coverage.xml
+      # publishes the coverage percentage for a README badge. Non-blocking:
+      # without a CODECOV_TOKEN the action still succeeds (public repo).
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

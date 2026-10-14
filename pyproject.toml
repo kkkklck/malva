@@ -1,6 +1,6 @@
 [build-system]
-requires = ["poetry", "Cython>=0.29.21", "setuptools", "wheel", "numpy>=1.17.0", "pkgconfig"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core>=1.0.8", "Cython>=0.29.21", "setuptools", "wheel", "numpy>=1.17.0", "pkgconfig"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "malva"
@@ -58,11 +58,17 @@ datashader = ">0.15.0"
 flask = ">2.3.0"
 flask_session = ">=0.8.0"
 flask_cors = ">=6.0.2"
-biopython = ">=1.83"
 scikit-image = ">=0.24.0"
 ollama = ">=0.3.1"
 tqdm = ">=4.66.6"
 anndata = ">=0.10.0"
+matplotlib = ">=3.5"
+scanpy = ">=1.9"
+scipy = ">=1.7"
+scikit-learn = ">=1.0"
+requests = ">=2.26"
+pillow = ">=9.0"
+werkzeug = ">=2.0"
 
 [tool.poetry.extras]
 # pip install 'malva[sra]'   — adds SRA archive support (requires sra-tools on PATH)
@@ -86,6 +92,10 @@ pytest = ">=7.0.0"
 pytest-cov = ">=4.0.0"
 coverage = ">=7.0.0"
 pkgconfig = "*"
+ruff = ">=0.16.9"
+ty = ">=0.0.84"
+deptry = ">=0.25.0"
+pip-licenses = ">=5.0.0"
 
 [tool.poetry.urls]
 "Documentation" = "https://rajewsky-lab.github.io/malva"
@@ -133,3 +143,55 @@ archs = ["x86_64"]
 
 [tool.cibuildwheel.macos]
 archs = ["x86_64", "arm64"]
+
+# --- lint / type / test tooling ---
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+src = ["."]
+# build/ holds Cython intermediates; docs/ and examples/ are not shipped code;
+# setup.py is generated from pyproject.toml by build_scripts/generate_setup.py
+# and must stay byte-identical to that output.
+extend-exclude = ["build", "docs", "examples", "setup.py"]
+
+[tool.ruff.lint]
+# Deliberately narrow: import order + pyflakes + the E4/E7/E9
+# statement/import classes. Style is owned by `ruff format`.
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = ["E402", "F403", "F405", "F841", "F811", "E722", "E741", "E731", "F821"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["malva"]
+
+[tool.ty]
+[tool.ty.environment]
+python-version = "3.11"
+
+# The compiled .pyx modules (barcodes, fast_map, kmer_processing, indexes, ...)
+# ship as extension modules with no .pyi stubs, so importing them from tests is
+# always "unresolved" to a pure-Python checker. Ignore that single rule; every
+# other diagnostic in the checked subset still fails the gate.
+[tool.ty.rules]
+unresolved-import = "ignore"
+
+# The compiled .pyx modules have no Python stubs, so a whole-repo ty run is
+# dominated by false "unresolved import/attribute" noise. Check the subset that
+# is real Python and is expected to stay typed clean.
+[tool.ty.src]
+include = ["tests"]
+
+[tool.deptry]
+# build/ holds Cython intermediates; build_scripts/, scripts/ and docs/ are not
+# part of the installed package, so they must not drive the dependency set.
+extend_exclude = ["build", "build_scripts", "docs", "scripts"]
+known_first_party = ["malva"]
+# Distribution name -> import name, where deptry cannot infer the mapping.
+package_module_name_map = { pyyaml = ["yaml"], scikit-learn = ["sklearn"], scikit-image = ["skimage"], pillow = ["PIL"] }
+# tqdm is used by the standalone scripts under scripts/ (excluded above because
+# they are not part of the installed package), so deptry cannot see the import.
+per_rule_ignores = { DEP002 = ["tqdm"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

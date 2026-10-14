@@ -1,0 +1,26 @@
+# Pre-commit hooks mirror the CI lint gate locally so problems are caught before
+# a push. One-time setup:
+#
+#     pip install pre-commit        # or: uv tool install pre-commit
+#     pre-commit install            # installs the git pre-commit hook
+#     pre-commit run --all-files    # run every hook over the whole tree
+default_language_version:
+  python: python3.11
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format

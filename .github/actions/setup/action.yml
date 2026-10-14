@@ -1,0 +1,36 @@
+name: setup
+description: Install uv, build the Cython extensions (editable) and the dev tools.
+
+inputs:
+  python-version:
+    description: Python version for the virtual environment.
+    required: false
+    default: "3.12"
+  debug-build:
+    description: Build with Cython line tracing (MALVA_DEBUG_BUILD=1) for coverage.
+    required: false
+    default: "0"
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v8.1.0
+      with:
+        enable-cache: true
+    - run: uv venv --python ${{ inputs.python-version }}
+      shell: bash
+    # Builds the .pyx extensions in place through the build script (build.py).
+    # On Linux liburing is used when its headers are present and the build falls
+    # back to plain pread otherwise.
+    - run: uv pip install -e .
+      shell: bash
+      env:
+        MALVA_DEBUG_BUILD: ${{ inputs.debug-build }}
+    # Kept in step with [tool.poetry.group.dev.dependencies] in pyproject.toml.
+    # Cython is here (not just in the build env) so the Cython.Coverage plugin
+    # can map line hits back to the .pyx sources.
+    - run: >-
+        uv pip install
+        "Cython>=3.0" "coverage>=7.0.0" "pytest>=7.0.0" "pytest-cov>=4.0.0"
+        "ruff>=0.16.9" "ty>=0.0.84" "deptry>=0.25.0" "pip-licenses>=5.0.0"
+      shell: bash

@@ -14,22 +14,28 @@ package_data = \
 
 install_requires = \
 ['anndata>=0.10.0',
- 'biopython>=1.83',
  'datashader>0.15.0',
  'dnaio>1.0.0',
  'flask>2.3.0',
  'flask_cors>=6.0.2',
  'flask_session>=0.8.0',
  'h5py>=3',
+ 'matplotlib>=3.5',
  'numpy>=1.17.0',
  'ollama>=0.3.1',
  'pandas>=1.0',
+ 'pillow>=9.0',
  'pyyaml>5.4',
+ 'requests>=2.26',
  'rich>13.0',
+ 'scanpy>=1.9',
  'scikit-image>=0.24.0',
+ 'scikit-learn>=1.0',
+ 'scipy>=1.7',
  'setproctitle>1.0',
  'tifffile>2022.4.8',
  'tqdm>=4.66.6',
+ 'werkzeug>=2.0',
  'xopen>=1.7.0']
 
 extras_require = \
