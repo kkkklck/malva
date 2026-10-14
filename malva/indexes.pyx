@@ -252,7 +252,7 @@ cdef extern from *:
         uint64_t* bytes_read_out
     )
     {
-        const int QD = 64;
+        const int QD = 2;
         struct io_uring ring;
         int ret = io_uring_queue_init(QD, &ring, 0);
         if (ret < 0) return ret;

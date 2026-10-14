@@ -7,34 +7,44 @@
 from setuptools import setup
 
 packages = \
-['malva', 'malva.serve']
+['malva', 'malva.serve', 'malva.serve.templates']
 
 package_data = \
-{'': ['*'], 'malva': ['data/*'], 'malva.serve': ['static/*']}
+{'': ['*'], 'malva': ['data/*'], 'malva.serve': ['static/css/*']}
 
 install_requires = \
-['numpy>=1.17.0',
- 'pandas>=1.0',
+['anndata>=0.10.0',
+ 'biopython>=1.83',
+ 'datashader>0.15.0',
  'dnaio>1.0.0',
- 'xopen>=1.7.0',
+ 'flask>2.3.0',
+ 'flask_cors>=6.0.2',
+ 'flask_session>=0.8.0',
  'h5py>=3',
+ 'numpy>=1.17.0',
+ 'ollama>=0.3.1',
+ 'pandas>=1.0',
+ 'pyyaml>5.4',
  'rich>13.0',
+ 'scikit-image>=0.24.0',
  'setproctitle>1.0',
  'tifffile>2022.4.8',
- 'pyyaml>5.4',
- 'flask>2.3.0',
- 'flask_session>=0.8.0',
- 'flask_cors>=6.0.2',
- 'tqdm>=4.66.6']
+ 'tqdm>=4.66.6',
+ 'xopen>=1.7.0']
+
+extras_require = \
+{'all': ['sra-reader>=0.1.0', 'pysam>=0.22.0'],
+ 'bam': ['pysam>=0.22.0'],
+ 'sra': ['sra-reader>=0.1.0']}
 
 entry_points = \
 {'console_scripts': ['malva = malva.__main__:run_malva']}
 
 setup_kwargs = {
     'name': 'malva',
-    'version': '1.0.1',
-    'description': 'malva: fast indexing and querying of genomic sequences from spatial transcriptomics data',
-    'long_description': "# malva: fast indexing and querying of genomic sequences from spatial transcriptomics data\n\n### [🌐 website](https://rajewsky-lab.github.io/malva/latest) | [📜 preprint](https://www.biorxiv.org/content/10.1101/2023.12.22.572554v1) | [🐁 datasets](https://rajewsky-lab.github.io/malva/latest/examples/datasets/)\n\nTODO: include an image of the workflow\n\n`malva` is an [inverted index](https://en.wikipedia.org/wiki/Inverted_index) that enables rapid retrieval of sequences from spatial transcriptomics data.\n\n`malva` operates by constructing an inverse index from the raw sequence data and corresponding spatial coordinates. This facilitates fast retrieval of sequences based on user queries, such as k-mers or custom sequences.\n\n## Quick start\nTODO: include here how to install and use with an Open-ST dataset\nTODO: include an image\n\n## Documentation\nAll the detail to `malva` are available in [our documentation website](https://rajewsky-lab.github.io/malva/).\n\nWe love to have an open approach to documentation. We decided to use [mkdocs](https://github.com/mkdocs/mkdocs) as our documentation backend \nto make your life easier. So, feel free to suggest changes by opening a \n[documentation-related issue](https://github.com/rajewsky-lab/malva/issues/new?assignees=&labels=docs&template=&title=)!\n\nYou can build the documentation locally by following these steps:\n1. Clone this repository\n   ```sh\n   git clone https://github.com/rajewsky-lab/malva\n   ```\n2. Install the dependencies for building the documentation:\n   ```sh\n   pip install mkdocs-material mkdocs-autorefs mknotebooks\n   ```\n3. Serve mkdocs with the following command:\n   ```sh\n   mkdocs serve -f malva/mkdocs.yml\n   ```\n\n## Contributing\n`malva` is an open-source project mostly maintained by the [Rajewsky lab @ MDC Berlin](https://www.mdc-berlin.de/n-rajewsky) - so, your involvement is warmly welcome! \nIf you're excited to join us, we recommend the following steps:\n\n- Looking for ideas? See our [Volunteer Project Board](https://github.com/orgs/rajewsky-lab/projects/1) to see what we may need help with.\n- Found a bug? Contact an admin in the form of an [issue](https://github.com/rajewsky-lab/malva/issues/new?assignees=&labels=&template=bug-report.md&title=).\n- Implement your idea following guidelines set by the [official contributing guide](CONTRIBUTING.md)\n- Wait for admin approval; approval is iterative, but if accepted will belong to the main repository.\n\nIn general, you can always refer to the [contribution guidelines](CONTRIBUTING.md) for more details!\nCurrently, only [admins](https://github.com/orgs/rajewsky-lab/people) will be merging all accepted changes.\n\n## Code of Conduct\nEveryone interacting in the `malva` project's codebases, issue trackers, and discussion forums is expected to follow the [PSF Code of Conduct](https://www.python.org/psf/conduct/).\n\n## License\nThe software tools of this project are under a custom license - see the [LICENSE](LICENSE) file for details.\n",
+    'version': '1.1.0',
+    'description': 'malva: fast indexing and querying of genomic sequences from single-cell omics data',
+    'long_description': '# Malva\n\n[![PyPI](https://img.shields.io/pypi/v/malva)](https://pypi.org/project/malva/)\n[![Documentation](https://readthedocs.org/projects/malva/badge/?version=latest)](https://malva.readthedocs.io)\n[![GitHub](https://img.shields.io/badge/GitHub-malva--bio%2Fmalva-blue)](https://github.com/malva-bio/malva)\n\n**[Documentation](https://malva.readthedocs.io)** | **[Web Platform](https://malva.bio)**\n\nMalva is a nucleotide sequence indexer that enables sequence search at single-cell and spatial resolution: query any sequence across millions of single cells, in seconds.\n\nMalva powers [**Malva Index**](https://malva.mdc-berlin.de), a large collection of datasets spanning 75+ million human single cells.\nYou can use the [Malva Client API](https://github.com/malva-bio/malva_client) to connect to and query the Malva Index.\n\n> **Code and binaries are freely available for academic non-profit use.** See [LICENSE](LICENSE) for details.\n\n---\n\n## What Malva Can Do\n\n- Search any nucleotide sequence across single cells from your own datasets\n- *In silico* probe-based detection of viral/bacterial transcripts, circular RNAs, splice variants, and mutations\n\n---\n\n## Installation\n\n`Malva` can be installed from pip.\n\n```bash\npip install malva\n```\n\n**Linux note:** installing `liburing` is recommended for optimal I/O performance.\n```bash\nsudo apt-get install liburing2      # Debian/Ubuntu\nsudo dnf install liburing           # RHEL/Fedora\n```\nMalva will build and run without it, but I/O will fall back to standard `pread`.\n\n---\n\n## Building from Source\n\nRequires Python ≥ 3.9, a C++17 compiler, and Cython ≥ 3.0.\n\n```bash\npip install poetry cython>=3.0 numpy setuptools wheel pkgconfig\npip install .\n```\n\nSee the [documentation](https://malva.readthedocs.io) for full build instructions, usage, and examples.\n\n---\n\n## Citation\n\nIf you use Malva in your research, please cite our [paper in Nature](https://www.nature.com/articles/s41586-026-10975-w):\n\n```latex\n@article{LenPerin2026,\n  title = {Ultrafast and reference-free sequence discovery in single-cell data},\n  ISSN = {1476-4687},\n  url = {http://dx.doi.org/10.1038/s41586-026-10975-w},\n  DOI = {10.1038/s41586-026-10975-w},\n  journal = {Nature},\n  publisher = {Springer Science and Business Media LLC},\n  author = {León-Periñán,  Daniel and Karaiskos,  Nikos and Rajewsky,  Nikolaus},\n  year = {2026},\n  month = Aug \n}\n```\n---\n\n## Contact\n\n- Issues: [GitHub Issues](https://github.com/malva-bio/malva/issues)\n- General inquiries: [Rajewsky Lab @ MDC Berlin](https://rajewsky-lab.github.io)\n',
     'author': 'Daniel León-Periñán',
     'author_email': 'daniel.leonperinan@mdc-berlin.de',
     'maintainer': 'Daniel León-Periñán',
@@ -43,8 +53,9 @@ setup_kwargs = {
     'packages': packages,
     'package_data': package_data,
     'install_requires': install_requires,
+    'extras_require': extras_require,
     'entry_points': entry_points,
-    'python_requires': '>=3.9,<3.13',
+    'python_requires': '>=3.9,<3.15',
 }
 from build import *
 build(setup_kwargs)
