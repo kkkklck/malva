@@ -136,8 +136,12 @@ before-build = "pip install 'cython>=3.0' 'numpy>=1.21'"
 environment = {MALVA_DEBUG_BUILD = "0"}
 
 [tool.cibuildwheel.linux]
-# liburing is required on Linux for io_uring support in indexes.pyx
-before-all = "yum install -y liburing-devel 2>/dev/null || apt-get install -y liburing-dev 2>/dev/null || true"
+# Build the Linux wheels WITHOUT io_uring. indexes.pyx only enables its io_uring
+# path when <liburing.h> is present (and only links it then); the manylinux image
+# ships an older liburing than that path needs, so make sure the header is absent
+# and the code takes its pread fallback. macOS never has liburing and builds the
+# same way. The source is unchanged -- this only affects the wheel build.
+before-all = "rm -f /usr/include/liburing.h /usr/local/include/liburing.h; rm -rf /usr/include/liburing /usr/local/include/liburing; true"
 manylinux-x86_64-image = "manylinux_2_28"
 archs = ["x86_64"]
 
