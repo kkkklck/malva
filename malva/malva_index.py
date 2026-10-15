@@ -213,6 +213,7 @@ class MalvaIndex:
         n_report=10_000_000,
         chunksize=100_000_000,
         threads=1,
+        metrics=None,
     ):
         """
         Add reads from FASTQ files and build the index.
@@ -237,10 +238,12 @@ class MalvaIndex:
             n_report=n_report,
             threads=threads,
             is_bulk=is_bulk,
+            metrics=metrics,
+            barcode_in_r2=(read_group == "r2"),
         )
 
         self._chunk_paths = chunk_paths
-        self._build_from_chunks()
+        self._build_from_chunks(metrics=metrics)
 
         self._save_metadata()
 
@@ -257,6 +260,7 @@ class MalvaIndex:
         threads=1,
         barcode_segment=None,
         cdna_segment=None,
+        metrics=None,
     ):
         """
         Add reads from an SRA archive and build the index.
@@ -281,10 +285,11 @@ class MalvaIndex:
             barcode_segment=barcode_segment,
             cdna_segment=cdna_segment,
             extra_meta=self._index_state_meta(),
+            metrics=metrics,
         )
 
         self._chunk_paths = chunk_paths
-        self._build_from_chunks()
+        self._build_from_chunks(metrics=metrics)
         self._save_metadata()
 
     def add_reads_bam(
@@ -298,6 +303,7 @@ class MalvaIndex:
         threads=1,
         barcode_tag="CB",
         sequence_tag=None,
+        metrics=None,
     ):
         """
         Add reads from a BAM file and build the index.
@@ -322,13 +328,14 @@ class MalvaIndex:
             barcode_tag=barcode_tag,
             sequence_tag=sequence_tag,
             extra_meta=self._index_state_meta(),
+            metrics=metrics,
         )
 
         self._chunk_paths = chunk_paths
-        self._build_from_chunks()
+        self._build_from_chunks(metrics=metrics)
         self._save_metadata()
 
-    def _build_from_chunks(self):
+    def _build_from_chunks(self, metrics=None):
         """Build the index from sorted chunk files.
 
         The Cython build functions (_build_index_radix, build_from_sorted_chunks)
@@ -351,6 +358,9 @@ class MalvaIndex:
             return
 
         logging.info(f"Merging {len(self._chunk_paths)} chunks with n_cells={self.n_spatial}")
+        import time as _time
+
+        _t_merge = _time.time()
         build_from_sorted_chunks(
             self._chunk_paths,
             self.index_dir,
@@ -359,6 +369,8 @@ class MalvaIndex:
             n_cells=self.n_spatial,
             verbose=self.verbose,
         )
+        if metrics is not None:
+            metrics.build_seconds = metrics.build_seconds + (_time.time() - _t_merge)
 
         # build_from_sorted_chunks writes a minimal meta.json — patch it with
         # the full index state immediately so it is never left incomplete.

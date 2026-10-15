@@ -3,15 +3,25 @@
 #
 # Non-commercial and academic use only. See LICENSE for full terms.
 
+import json
 import logging
 import os
 import re
+import time
 
 import yaml
 
+from malva import __version__
 from malva.barcodes import SpatialIndex, create_singlecell_index, create_spatial_index
 from malva.malva_index import MalvaIndex
-from malva.utils import SUCCESS_MSG, check_directory_exists, check_file_exists, get_module_path
+from malva.metrics import IndexingMetrics
+from malva.utils import (
+    SUCCESS_MSG,
+    check_cell_string,
+    check_directory_exists,
+    check_file_exists,
+    get_module_path,
+)
 
 N_REPORT = 1_000_000
 
@@ -68,7 +78,14 @@ def _run_index(args):
 
     logging.info(f"Configuring flavor `{args.flavor}`")
     _config_path = os.path.join(get_module_path(), "data", "config.yaml")
-    flavor_config = load_flavor(args.flavor, _config_path)
+    flavor_config = dict(load_flavor(args.flavor, _config_path))
+
+    if getattr(args, "cell", None):
+        # Validate the override early (raises FormatError on a malformed spec).
+        check_cell_string(args.cell)
+        flavor_config["cell"] = args.cell
+        logging.info(f"Overriding barcode geometry with --cell {args.cell}")
+
     _bam_tags = flavor_config["bam_tags"]
     _cell = flavor_config["cell"]
 
@@ -98,6 +115,19 @@ def _run_index(args):
         l_prefix = args.l_prefix
 
     jump_amount = 1 if getattr(args, "overlapping", False) else args.kmer_length
+
+    metrics = IndexingMetrics(
+        input_type=input_type,
+        flavor=args.flavor,
+        kmer_size=args.kmer_length,
+        l_prefix=l_prefix,
+        jump_amount=jump_amount,
+        overlap=getattr(args, "overlapping", False),
+        version=__version__,
+    )
+    metrics.flavor_config = flavor_config
+    _t_start = time.time()
+
     kmer_index = MalvaIndex(
         args.index_out,
         kmer_size_initialize=args.kmer_length,
@@ -132,11 +162,10 @@ def _run_index(args):
             _cell,
             chunksize=args.chunksize,
             threads=args.threads,
+            metrics=metrics,
         )
 
     elif input_type == "sra":
-        from malva.utils import check_cell_string
-
         _, trim_start, trim_end = check_cell_string(_cell)
 
         # CLI args always carry a value (default 0/1 if not explicitly set)
@@ -159,6 +188,7 @@ def _run_index(args):
             threads=args.threads,
             barcode_segment=barcode_seg,
             cdna_segment=cdna_seg,
+            metrics=metrics,
         )
 
     elif input_type == "bam":
@@ -178,9 +208,42 @@ def _run_index(args):
             threads=args.threads,
             barcode_tag=barcode_tag,
             sequence_tag=sequence_tag,
+            metrics=metrics,
         )
 
+    metrics.total_seconds = time.time() - _t_start
+    _persist_and_log_metrics(metrics, args.index_out, flavor_config)
     logging.info(SUCCESS_MSG)
+
+
+def _persist_and_log_metrics(metrics, index_dir, flavor_config):
+    """Store the counters and resolved flavour in meta.json and log the summary."""
+    meta_path = os.path.join(index_dir, "meta.json")
+    meta = {}
+    if os.path.exists(meta_path):
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            meta = {}
+
+    metrics.n_kmers = int(meta.get("n_kmers", 0))
+    metrics.n_buckets = int(meta.get("n_buckets_written", 0))
+    metrics.n_prefixes = int(meta.get("n_prefixes", 0))
+    metrics.n_cells = int(meta.get("n_cells", 0))
+    metrics.index_bytes = sum(
+        os.path.getsize(os.path.join(index_dir, name))
+        for name in ("pi.bin", "suffixes.bin", "data.bin")
+        if os.path.exists(os.path.join(index_dir, name))
+    )
+
+    meta["flavor"] = flavor_config
+    meta["metrics"] = metrics.as_dict()
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+
+    for line in metrics.summary_lines():
+        logging.info(line)
 
 
 if __name__ == "__main__":

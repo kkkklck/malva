@@ -73,6 +73,7 @@ def process_sra_reads(
     barcode_segment: Optional[int] = None,
     cdna_segment: Optional[int] = None,
     extra_meta: Optional[dict] = None,
+    metrics=None,
 ) -> list:
     """
     Process an SRA archive and populate index chunks.
@@ -125,8 +126,15 @@ def process_sra_reads(
     chunk_num = 0
     total_pairs = 0
     ns = 0
+    reads_indexed = 0
+    nt_read = 0
+    nt_indexed = 0
+    samples: list = []
     chunk_paths: list[str] = []
     t0 = time.time()
+    n_cells = spatial_index.num_items() if spatial_index is not None else 0
+    seen = np.zeros(n_cells + 1, dtype=np.uint8) if spatial_index is not None else None
+    t_read_start = time.time()
 
     reader = SRAReader(sra_path, include_quality=False)
     with reader:
@@ -135,7 +143,7 @@ def process_sra_reads(
 
             # Retry loop handles buffer-full (-1) by doubling capacity
             while True:
-                new_tp = process_sra_batch(
+                result = process_sra_batch(
                     segs_batch,
                     barcode_segment,
                     cdna_segment,
@@ -148,12 +156,16 @@ def process_sra_reads(
                     kmer_size,
                     jump_amount,
                     cap,
+                    seen,
                 )
-                if new_tp == -1:
+                if result[0] == -1:
                     cap *= 2
                     ak, ac = _grow(ak, ac, cap)
                     continue
-                tp = new_tp
+                tp = result[0]
+                reads_indexed += result[2]
+                nt_read += result[3]
+                nt_indexed += result[4]
                 break
 
             if tp >= chunksize:
@@ -174,6 +186,7 @@ def process_sra_reads(
             if ns % n_report < _BATCH_SIZE:
                 dt = time.time() - t0
                 if dt > 0:
+                    samples.append(n_report / dt)
                     logging.info(
                         "  Read %s spots, %s pairs (%.0f spots/s)",
                         f"{ns:,}",
@@ -182,6 +195,7 @@ def process_sra_reads(
                     )
                 t0 = time.time()
 
+    read_seconds = time.time() - t_read_start
     logging.info(
         "SRA: %s spots, %s pairs, %d chunks",
         f"{ns:,}",
@@ -189,8 +203,20 @@ def process_sra_reads(
         chunk_num,
     )
 
-    n_cells = spatial_index.num_items() if spatial_index is not None else 0
-    return _finalise(
+    if metrics is not None:
+        metrics.reads_total = ns
+        metrics.reads_indexed = reads_indexed
+        metrics.nucleotides_read = nt_read
+        metrics.nucleotides_indexed = nt_indexed
+        metrics.kmer_cell_pairs = int(total_pairs + tp)
+        metrics.chunks = chunk_num
+        metrics.barcodes_total = n_cells
+        metrics.distinct_barcodes = int(np.count_nonzero(seen)) if seen is not None else 0
+        metrics.read_seconds = read_seconds
+        metrics.throughput_samples = samples
+
+    t_build_start = time.time()
+    paths = _finalise(
         ak,
         ac,
         tp,
@@ -203,6 +229,8 @@ def process_sra_reads(
         n_cells=n_cells,
         extra_meta=extra_meta,
     )
+    _add_build_seconds(metrics, t_build_start)
+    return paths
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +251,7 @@ def process_bam_reads(
     barcode_tag: str = "CB",
     sequence_tag: Optional[str] = None,
     extra_meta: Optional[dict] = None,
+    metrics=None,
 ) -> list:
     """
     Process a BAM file and populate index chunks.
@@ -306,17 +335,24 @@ def process_bam_reads(
     chunk_num = 0
     total_pairs = 0
     ns = 0
+    reads_indexed = 0
+    nt_read = 0
+    nt_indexed = 0
+    samples: list = []
     chunk_paths: list[str] = []
     t0 = time.time()
+    n_cells = spatial_index.num_items() if spatial_index is not None else 0
+    seen = np.zeros(n_cells + 1, dtype=np.uint8) if spatial_index is not None else None
+    t_read_start = time.time()
 
     bc_batch: list = []
     seq_batch: list = []
     ns_bc_missing: int = 0
 
     def _flush_bam_batch():
-        nonlocal tp, cap, ak, ac
+        nonlocal tp, cap, ak, ac, reads_indexed, nt_read, nt_indexed
         while True:
-            new_tp = process_bam_batch(
+            result = process_bam_batch(
                 bc_batch,
                 seq_batch,
                 spatial_index,
@@ -326,12 +362,16 @@ def process_bam_reads(
                 kmer_size,
                 jump_amount,
                 cap,
+                seen,
             )
-            if new_tp == -1:
+            if result[0] == -1:
                 cap *= 2
                 ak, ac = _grow(ak, ac, cap)
                 continue
-            tp = new_tp
+            tp = result[0]
+            reads_indexed += result[2]
+            nt_read += result[3]
+            nt_indexed += result[4]
             break
         bc_batch.clear()
         seq_batch.clear()
@@ -378,6 +418,7 @@ def process_bam_reads(
                 if ns % n_report < _BATCH_SIZE:
                     dt = time.time() - t0
                     if dt > 0:
+                        samples.append(n_report / dt)
                         logging.info(
                             "  Read %s reads, %s pairs (%.0f reads/s)",
                             f"{ns:,}",
@@ -406,8 +447,20 @@ def process_bam_reads(
             ns_bc_missing / ns * 100,
         )
 
-    n_cells = spatial_index.num_items() if spatial_index is not None else 0
-    return _finalise(
+    if metrics is not None:
+        metrics.reads_total = ns
+        metrics.reads_indexed = reads_indexed
+        metrics.nucleotides_read = nt_read
+        metrics.nucleotides_indexed = nt_indexed
+        metrics.kmer_cell_pairs = int(total_pairs + tp)
+        metrics.chunks = chunk_num
+        metrics.barcodes_total = n_cells
+        metrics.distinct_barcodes = int(np.count_nonzero(seen)) if seen is not None else 0
+        metrics.read_seconds = time.time() - t_read_start
+        metrics.throughput_samples = samples
+
+    t_build_start = time.time()
+    paths = _finalise(
         ak,
         ac,
         tp,
@@ -420,11 +473,19 @@ def process_bam_reads(
         n_cells=n_cells,
         extra_meta=extra_meta,
     )
+    _add_build_seconds(metrics, t_build_start)
+    return paths
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+def _add_build_seconds(metrics, start):
+    """Accumulate the time spent in the index-build phase onto ``metrics``."""
+    if metrics is not None:
+        metrics.build_seconds = metrics.build_seconds + (time.time() - start)
 
 
 def _grow(ak: np.ndarray, ac: np.ndarray, new_cap: int):
