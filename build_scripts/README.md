@@ -13,7 +13,7 @@ Use the scripts in this directory only when you need to produce wheels locally
 
 ## Build modes
 
-The `build.py` at the project root reads one environment variable:
+The `build_extensions.py` at the project root reads one environment variable:
 
 | Variable | Value | Effect |
 |---|---|---|

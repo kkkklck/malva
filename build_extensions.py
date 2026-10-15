@@ -5,11 +5,11 @@
 
 import os
 import sys
-from distutils.command.build_ext import build_ext
 
 import numpy
 from Cython.Build import cythonize
 from setuptools import Extension
+from setuptools.command.build_ext import build_ext
 
 
 def _has_liburing():
