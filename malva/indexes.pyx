@@ -1686,7 +1686,8 @@ cdef void _write_sorted_chunk(uint64_t* ak, uint32_t* ac, uint64_t n, str chunk_
 
 def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
     int kmer_size=24, int l_prefix=12, int jump_amount=0, int trim_start=0, int trim_end=28,
-    int chunksize=100000000, int n_report=10000000, int threads=1, bint is_bulk=False):
+    int chunksize=100000000, int n_report=10000000, int threads=1, bint is_bulk=False,
+    object metrics=None, bint barcode_in_r2=False):
     """Read FASTQ, build index. Uses radix build for single chunk, k-way merge for multiple."""
     from malva.xopen import xopen
     cdef:
@@ -1702,6 +1703,9 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
         uint32_t* ac = NULL
         uint64_t tp=0, cap=50000000
         int chunk_num = 0
+        Py_ssize_t n_indexed=0, nt_read=0, nt_indexed=0, cdna_len=0
+        int n_cells = 0
+        double t_read=0.0, t_write=0.0
     if jump_amount==0: jump_amount=kmer_size
     ak=<uint64_t*>malloc(cap*8); ac=<uint32_t*>malloc(cap*4)
     if ak==NULL or ac==NULL: free(ak);free(ac); raise MemoryError()
@@ -1712,6 +1716,13 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
     chunk_paths = []
     cdef uint64_t total_pairs = 0
 
+    cdef np.ndarray[np.uint8_t, ndim=1] seen = None
+    if spatial_index is not None and not is_bulk:
+        n_cells = int(spatial_index.num_items())
+        seen = np.zeros(n_cells + 1, dtype=np.uint8)
+    samples = []
+    cdef double t_read_start = time.time()
+
     if is_bulk:
         cid=<uint32_t>int(reads_in[0])
         ir2=KmerFastqParser(xopen(reads_in[1],"rb",threads=max(threads//2,1)),BUF,kmer_size=kmer_size,jump_amount=jump_amount)
@@ -1719,6 +1730,7 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
             try: r2k=ir2.next()
             except StopIteration: break
             ns+=1
+            nt_read += ir2.last_sequence_length
             for i in range(r2k.size()):
                 if tp>=cap:
                     cap=cap*2; ak=<uint64_t*>realloc(ak,cap*8); ac=<uint32_t*>realloc(ac,cap*4)
@@ -1733,17 +1745,28 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
             if ns%n_report==0:
                 dt=time.time()-t0
                 if dt > 0:
+                    samples.append(n_report/dt)
                     logging.info(f"  Read {ns:,} seqs, {total_pairs+tp:,} total pairs ({n_report/dt:,.0f} reads/s)")
                 t0=time.time()
+        n_indexed = ns  # bulk: every read is indexed under a single cell id
     else:
-        ir1=SequenceFastqParser(xopen(reads_in[0],"rb",threads=max(threads//2,1)),BUF,trim_start=trim_start,trim_end=trim_end)
-        ir2=KmerFastqParser(xopen(reads_in[1],"rb",threads=max(threads//2,1)),BUF,kmer_size=kmer_size,jump_amount=jump_amount)
+        if barcode_in_r2:
+            bc_file = reads_in[1]; cdna_file = reads_in[0]
+        else:
+            bc_file = reads_in[0]; cdna_file = reads_in[1]
+        ir1=SequenceFastqParser(xopen(bc_file,"rb",threads=max(threads//2,1)),BUF,trim_start=trim_start,trim_end=trim_end)
+        ir2=KmerFastqParser(xopen(cdna_file,"rb",threads=max(threads//2,1)),BUF,kmer_size=kmer_size,jump_amount=jump_amount)
         while True:
             try: r2k=ir2.next(); r1bc=ir1.next()
             except StopIteration: break
-            cid=spatial_index.lookup(r1bc)
-            if cid==0: ns+=1; continue
+            cdna_len=ir2.last_sequence_length
+            nt_read += cdna_len
             ns+=1
+            cid=spatial_index.lookup(r1bc)
+            if cid==0: continue
+            n_indexed+=1
+            nt_indexed += cdna_len
+            if cid <= n_cells: seen[cid]=1
             for i in range(r2k.size()):
                 if tp>=cap:
                     cap=cap*2; ak=<uint64_t*>realloc(ak,cap*8); ac=<uint32_t*>realloc(ac,cap*4)
@@ -1758,10 +1781,24 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
             if ns%n_report==0:
                 dt=time.time()-t0
                 if dt > 0:
+                    samples.append(n_report/dt)
                     logging.info(f"  Read {ns:,} seqs, {total_pairs+tp:,} total pairs ({n_report/dt:,.0f} reads/s)")
                 t0=time.time()
 
+    t_read = time.time() - t_read_start
     logging.info(f"Read {ns:,} sequences total, {total_pairs+tp:,} pairs, {chunk_num} chunks written")
+
+    if metrics is not None:
+        metrics.reads_total = ns
+        metrics.reads_indexed = n_indexed
+        metrics.nucleotides_read = nt_read
+        metrics.nucleotides_indexed = nt_indexed
+        metrics.kmer_cell_pairs = int(total_pairs + tp)
+        metrics.chunks = chunk_num
+        metrics.barcodes_total = n_cells
+        metrics.distinct_barcodes = int(np.count_nonzero(seen)) if seen is not None else 0
+        metrics.read_seconds = t_read
+        metrics.throughput_samples = samples
 
     # Close FASTQ file handles now so that background feeder threads are joined
     # and bgzip subprocesses are fully terminated before the memory-intensive
@@ -1780,15 +1817,18 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
         except Exception:
             pass
 
+    cdef double t_build_start = time.time()
     if tp == 0 and chunk_num == 0:
         free(ak); free(ac)
         _write_empty_index(output_dir, kmer_size, l_prefix, kmer_size - l_prefix, 0)
+        _record_build_seconds(metrics, t_build_start)
         return []
 
     if chunk_num == 0:
         logging.info(f"Single chunk with {tp:,} pairs - using radix build")
         _build_index_radix(ak, ac, tp, output_dir, kmer_size, l_prefix, 0)
         free(ak); free(ac)
+        _record_build_seconds(metrics, t_build_start)
         return []
     else:
         if tp > 0:
@@ -1798,7 +1838,13 @@ def process_fastq_reads(list reads_in, str output_dir, object spatial_index,
             chunk_paths.append(cp)
         free(ak); free(ac)
         logging.info(f"Written {len(chunk_paths)} chunks - will merge")
+        _record_build_seconds(metrics, t_build_start)
         return chunk_paths
+
+
+cdef void _record_build_seconds(object metrics, double start):
+    if metrics is not None:
+        metrics.build_seconds = metrics.build_seconds + (time.time() - start)
 
 cdef void _build_index_radix(uint64_t* ak, uint32_t* ac, uint64_t tp, str output_dir, int kmer_size, int l_prefix, uint64_t n_cells):
     cdef int l_suffix=kmer_size-l_prefix

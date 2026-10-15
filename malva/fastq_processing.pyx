@@ -165,6 +165,7 @@ cdef class KmerFastqParser:
         self.kmer_size = kmer_size
         self.overlapping = overlapping
         self.jump_amount = jump_amount
+        self.last_sequence_length = 0
         if buffer_size < 1:
             raise ValueError("Starting buffer size too small")
 
@@ -297,6 +298,7 @@ cdef class KmerFastqParser:
             # Check for \r\n line-endings and compensate
             if (sequence_end - 1)[0] == b'\r':
                 sequence_length -= 1
+            self.last_sequence_length = sequence_length
 
             # Calculate the number of kmers
             if self.overlapping:
@@ -520,6 +522,7 @@ def process_sra_batch(
     int kmer_size,
     int jump_amount,
     Py_ssize_t cap,
+    object seen=None,
 ):
     """
     Batch-process SRA spots from iter_raw_batched() output.
@@ -534,7 +537,9 @@ def process_sra_batch(
     kmer_size / jump_amount: k-mer extraction parameters
     cap: capacity of ak/ac buffers
 
-    Returns: new tp value, or -1 if buffer was full (caller should resize and retry).
+    Returns a tuple ``(status, reads, reads_indexed, nucleotides_read,
+    nucleotides_indexed)``. ``status`` is the new tp value, or -1 if the buffer
+    was full (the caller resizes and retries, discarding the counts).
     """
     cdef:
         list bc_list = segs_batch[barcode_segment]
@@ -550,9 +555,13 @@ def process_sra_batch(
         int bc_len = trim_end - trim_start
         uint64_t* ak_ptr = <uint64_t*>ak.data
         uint32_t* ac_ptr = <uint32_t*>ac.data
+        Py_ssize_t reads_indexed = 0, nt_read = 0, nt_indexed = 0
 
     for i in range(n):
         bc_bytes = bc_list[i]
+        cdna_bytes = cdna_list[i]
+        cdna_len = len(cdna_bytes)
+        nt_read += cdna_len
         bc_raw_len = len(bc_bytes)
         if bc_raw_len < trim_end:
             continue
@@ -564,25 +573,27 @@ def process_sra_batch(
         if cid == 0:
             continue
 
-        cdna_bytes = cdna_list[i]
-        cdna_ptr = <const unsigned char*>PyBytes_AS_STRING(cdna_bytes)
-        cdna_len = len(cdna_bytes)
-
         if cdna_len < kmer_size:
             continue
+
+        cdna_ptr = <const unsigned char*>PyBytes_AS_STRING(cdna_bytes)
+        reads_indexed += 1
+        nt_indexed += cdna_len
+        if seen is not None and cid < len(seen):
+            seen[cid] = 1
 
         num_kmers = (cdna_len - kmer_size) // jump_amount + 1
         for j in range(num_kmers):
             if j * jump_amount + kmer_size > cdna_len:
                 break
             if tp >= cap:
-                return <Py_ssize_t>(-1)
+                return (-1, 0, 0, 0, 0)
             kmer = encode_kmer(cdna_ptr + j * jump_amount, kmer_size)
             ak_ptr[tp] = kmer
             ac_ptr[tp] = cid
             tp += 1
 
-    return tp
+    return (tp, n, reads_indexed, nt_read, nt_indexed)
 
 
 def process_bam_batch(
@@ -595,6 +606,7 @@ def process_bam_batch(
     int kmer_size,
     int jump_amount,
     Py_ssize_t cap,
+    object seen=None,
 ):
     """
     Batch-process BAM records.
@@ -607,7 +619,9 @@ def process_bam_batch(
     kmer_size / jump_amount: k-mer extraction parameters
     cap: buffer capacity
 
-    Returns: new tp value, or -1 if buffer was full.
+    Returns a tuple ``(status, reads, reads_indexed, nucleotides_read,
+    nucleotides_indexed)``. ``status`` is the new tp value, or -1 if the buffer
+    was full.
     """
     cdef:
         int n = len(barcode_strs)
@@ -621,8 +635,13 @@ def process_bam_batch(
         uint32_t cid
         uint64_t* ak_ptr = <uint64_t*>ak.data
         uint32_t* ac_ptr = <uint32_t*>ac.data
+        Py_ssize_t reads_indexed = 0, nt_read = 0, nt_indexed = 0
 
     for i in range(n):
+        cdna_obj = cdna_strs[i]
+        if cdna_obj is not None:
+            nt_read += len(cdna_obj)
+
         bc_obj = barcode_strs[i]
         if bc_obj is None:
             continue
@@ -641,7 +660,6 @@ def process_bam_batch(
         if cid == 0:
             continue
 
-        cdna_obj = cdna_strs[i]
         if cdna_obj is None:
             continue
         if isinstance(cdna_obj, str):
@@ -654,15 +672,20 @@ def process_bam_batch(
         if cdna_len < kmer_size:
             continue
 
+        reads_indexed += 1
+        nt_indexed += cdna_len
+        if seen is not None and cid < len(seen):
+            seen[cid] = 1
+
         num_kmers = (cdna_len - kmer_size) // jump_amount + 1
         for j in range(num_kmers):
             if j * jump_amount + kmer_size > cdna_len:
                 break
             if tp >= cap:
-                return <Py_ssize_t>(-1)
+                return (-1, 0, 0, 0, 0)
             kmer = encode_kmer(cdna_ptr + j * jump_amount, kmer_size)
             ak_ptr[tp] = kmer
             ac_ptr[tp] = cid
             tp += 1
 
-    return tp
+    return (tp, n, reads_indexed, nt_read, nt_indexed)

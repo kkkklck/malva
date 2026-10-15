@@ -39,6 +39,7 @@ cdef class KmerFastqParser:
         bint overlapping
         int jump_amount
     cdef readonly Py_ssize_t number_of_records
+    cdef readonly Py_ssize_t last_sequence_length
 
     cdef _read_into_buffer(self)
     cdef vector[uint64_t] next(self)

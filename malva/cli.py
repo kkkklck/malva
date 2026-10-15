@@ -67,6 +67,17 @@ def get_index_parser():
         'seq_scope_v1', 'sc_10x_v1', 'sc_10x_v3', 'bulk', or a path to a .yaml file, are supported""",
     )
     parser.add_argument(
+        "--cell",
+        type=str,
+        default=None,
+        metavar="SPEC",
+        help="""Override the flavour's barcode geometry directly, in the same format
+        as the flavour YAML's `cell` field: `r1[START:END]` or `r2[START:END]`
+        (0-based, end-exclusive). The read part selects which FASTQ carries the
+        barcode, and START/END set its offset and length. Takes precedence over
+        the value from --flavor.""",
+    )
+    parser.add_argument(
         "--kmer-length",
         type=int,
         default=24,
