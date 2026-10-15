@@ -1,12 +1,14 @@
 import pytest
 
-import malva.serve.serve as serve
-
 
 @pytest.fixture
 def app_client(monkeypatch, tmp_path):
-    # flask_session writes a ./flask_session directory; keep it in the temp dir.
+    # flask_session resolves its storage dir at import time from the cwd, so
+    # import the app *after* chdir to keep ./flask_session inside the temp dir
+    # (and out of the repository).
     monkeypatch.chdir(tmp_path)
+    import malva.serve.serve as serve
+
     had_state = hasattr(serve, "global_state")
     original = getattr(serve, "global_state", None)
     serve.global_state = serve.GlobalState()
