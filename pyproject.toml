@@ -40,7 +40,7 @@ include = [
 ]
 
 [tool.poetry.build]
-script = "build.py"
+script = "build_extensions.py"
 generate-setup-file = true
 
 [tool.poetry.dependencies]
