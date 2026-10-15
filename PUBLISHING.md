@@ -13,6 +13,10 @@ everything to PyPI. It publishes whatever `version` is in `pyproject.toml`, so
 bump the version (and regenerate `setup.py`, see `build_scripts/README.md`)
 before releasing.
 
+The build itself lives in `.github/workflows/build-wheels.yml`, which also runs
+on every pull request (without publishing) so a PR shows whether the wheels build
+before it is merged.
+
 Trigger it either way:
 
 - GitHub → **Actions** → **release-pypi** → **Run workflow** (leave *Publish to

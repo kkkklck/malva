@@ -1,0 +1,51 @@
+name: build-wheels
+
+# Builds the sdist and the platform wheels, without publishing them. It runs on
+# every pull request (so a PR proves the wheels build before it is merged) and
+# on manual dispatch; release-pypi.yml also calls it as a reusable workflow and
+# then publishes the artifacts.
+on:
+  workflow_call:
+  pull_request:
+  workflow_dispatch:
+
+# least privilege: the build only reads the repository
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+      - run: uv build --sdist --out-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip cibuildwheel
+      # [tool.cibuildwheel] in pyproject.toml drives this: CPython 3.9-3.12, the
+      # manylinux_2_28 image on Linux (built without io_uring) and macOS x86_64 +
+      # arm64. On Linux cibuildwheel builds inside the manylinux container.
+      - run: python -m cibuildwheel --output-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: dist/*.whl
+          if-no-files-found: error
