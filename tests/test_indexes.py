@@ -127,6 +127,17 @@ class TestIndexBuildAndQuery:
         finally:
             index.close()
 
+    def test_l_prefix_8_preserves_full_32bit_suffix(self, tmp_path):
+        """A 16-base suffix must survive the 32-bit mask boundary intact."""
+        index_dir = build_index(tmp_path, SC_BARCODES, (0, 16), QUERY, spatial=False)
+        index = MalvaIndex(str(index_dir))
+        index._ensure_index_open()
+        try:
+            kmers, _, _ = index._prefix_index.iterate_all_kmers(verbose=False)
+            assert encode_kmer(QUERY) in set(kmers.tolist())
+        finally:
+            index.close()
+
 
 class TestMalvaIndexMetadata:
     def test_new_index_is_not_open(self, tmp_path):
