@@ -140,8 +140,11 @@ For a single query, index into the result list with ``[0]``:
 Multiple sequences
 ^^^^^^^^^^^^^^^^^^
 
-Pass a list of sequences to search them all in one call.  The returned
-list has one tuple per input sequence, in the same order:
+``MalvaIndex.where()`` treats query inputs as sequence groups.  A flat
+``list[str]`` is interpreted as a single group and therefore returns one
+result tuple.  To query multiple sequences independently, pass a
+``list[list[str]]`` with one inner list per sequence.  The returned list
+then has one tuple per group, in the same order:
 
 .. code-block:: python
 
@@ -150,17 +153,17 @@ list has one tuple per input sequence, in the same order:
    mindex = MalvaIndex("indices/pbmc_1k_v3")
    mindex.open()
 
-   # Collect sequences from a FASTA file
-   sequences = []
+   # Collect each FASTA record as its own sequence group
+   sequence_groups = []
    names = []
    with dnaio.open("sequences.fa") as fasta:
        for record in fasta:
-           sequences.append(record.sequence)
+           sequence_groups.append([record.sequence])
            names.append(record.name)
 
-   # Single call for all sequences
+   # Single call for all independent sequence queries
    results = mindex.where(
-       sequences,
+       sequence_groups,
        sliding_size=64,
        pct_threshold=0.65,
    )
