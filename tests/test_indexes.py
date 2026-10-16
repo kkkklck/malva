@@ -9,6 +9,7 @@ exercise the current API end to end on small, deterministic datasets.
 import numpy as np
 
 from malva.barcodes import SpatialIndex, create_singlecell_index, create_spatial_index
+from malva.indexes import PrefixIndex, PrefixIndexBuilder, build_from_sorted_chunks
 from malva.kmer_processing import encode_kmer
 from malva.malva_index import MalvaIndex
 from tests.index_helpers import (
@@ -133,8 +134,35 @@ class TestIndexBuildAndQuery:
         index = MalvaIndex(str(index_dir))
         index._ensure_index_open()
         try:
-            kmers, _, _ = index._prefix_index.iterate_all_kmers(verbose=False)
+            prefix_index = index._prefix_index
+            assert prefix_index is not None
+            kmers, _, _ = prefix_index.iterate_all_kmers(verbose=False)
             assert encode_kmer(QUERY) in set(kmers.tolist())
+        finally:
+            index.close()
+
+    def test_chunk_merge_preserves_full_32bit_suffix(self, tmp_path):
+        """The chunk-builder path must preserve a 16-base / 32-bit suffix too."""
+        encoded = encode_kmer(QUERY)
+        chunk_dir = tmp_path / "chunks"
+        builder = PrefixIndexBuilder(str(chunk_dir), kmer_size=24, l_prefix=8)
+        builder.add_pairs(
+            np.array([encoded], dtype=np.uint64),
+            np.array([1], dtype=np.uint32),
+        )
+        chunk = builder.write_chunk()
+        assert chunk is not None
+
+        index_dir = tmp_path / "merged"
+        build_from_sorted_chunks(
+            [chunk], str(index_dir), kmer_size=24, l_prefix=8, n_cells=1, verbose=False
+        )
+
+        index = PrefixIndex()
+        index.open(str(index_dir))
+        try:
+            kmers, _, _ = index.iterate_all_kmers(verbose=False)
+            assert encoded in set(kmers.tolist())
         finally:
             index.close()
 
